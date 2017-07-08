@@ -6,4 +6,3 @@ authors = ["Pedro Sland <pedrosland@gmail.com>"]
 [dependencies]
 mmal-sys = { path = "mmal-sys" }
 libc = "0.2"
-
