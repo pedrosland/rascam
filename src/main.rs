@@ -2,6 +2,7 @@
 extern crate mmal_sys as ffi;
 extern crate libc;
 use libc::{c_int, uint32_t, uint16_t, uint8_t, int32_t, size_t, c_char, c_void};
+use std::ffi::CStr;
 use std::mem;
 use std::ptr::Unique;
 use std::default::Default;
@@ -10,11 +11,17 @@ use std::ptr;
 fn main() {
     do_nothing();
 
-    let mut info = SimpleCamera::info().unwrap();
-    println!("camera info {:?}", info);
+    let mut info = CameraInfo::info().unwrap();
+    // println!("camera info {:?}", info);
+    if info.num_cameras < 1 {
+        println!("Found 0 cameras. Exiting");
+        // note that this doesn't run destructors
+        ::std::process::exit(1);
+    }
+    println!("Found {} camera ({} {}x{})", info.num_cameras, ::std::str::from_utf8(&info.cameras[0].camera_name).unwrap(), info.cameras[0].max_width, info.cameras[0].max_height);
 
-  // let mut camera = SimpleCamera::new().unwrap();
-  // println!("camera created");
+  let mut camera = SimpleCamera::new().unwrap();
+  println!("camera created");
   // camera.create_encoder().unwrap();
   // println!("encoder created");
   // // camera.enable().unwrap();
@@ -57,6 +64,42 @@ struct CameraInfo {
 
 }
 
+impl CameraInfo {
+    pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T> {
+        unsafe {
+            let mut raw = Box::new(mem::zeroed());
+            let mut component: *const ::std::os::raw::c_char = ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const ::std::os::raw::c_char;
+            let mut raw3: *mut ffi::MMAL_COMPONENT_T = &mut *raw;
+            // println!("component: {:#?}\ncamera_info: {:#?}", *component, *raw3);
+            let status = ffi::mmal_component_create(component, &mut raw3 as *mut _);
+            // println!("2 status: {:#?}\ncomponent: {:#?}\ncamera_info: {:#?}", status, *component, *raw3);
+
+            match status {
+                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                    let mut found = false;
+                    let mut param = Box::new(mem::zeroed());
+                    let mut param3: *mut ffi::MMAL_PARAMETER_CAMERA_INFO_T = &mut *param;
+                    (*param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
+                    (*param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
+
+                    // println!("3 camera info status {:?}\nparam: {:#?}\ncontrol: {:#?}", status, (*param3).hdr, (*(*raw3).control).priv_);
+                    let status = ffi::mmal_port_parameter_get((*raw3).control, &mut (*param3).hdr);
+                    found = status == ffi::MMAL_STATUS_T::MMAL_SUCCESS;
+
+                    ffi::mmal_component_destroy(raw3);
+
+                    if !found {
+                        Err(status)
+                    } else {
+                        Ok(*param3)
+                    }
+                },
+                e => Err(e),
+            }
+        }
+    }
+}
+
 #[repr(C)]
 struct SimpleCamera {
     camera: Unique<ffi::MMAL_COMPONENT_T>,
@@ -74,50 +117,6 @@ struct SimpleCamera {
 }
 
 impl SimpleCamera {
-    pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T> {
-        unsafe {
-            let mut camera_info1: ffi::MMAL_COMPONENT_T = std::mem::uninitialized();
-            let mut camera_info: *mut ffi::MMAL_COMPONENT_T = &mut camera_info1;
-            // let mut p: ffi::MMAL_COMPONENT_PRIVATE_T = mem::zeroed();
-            // camera_info.priv_ = p;
-            let mut component: *const ::std::os::raw::c_char = ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const ::std::os::raw::c_char;
-            println!("component: {:#?}\ncamera_info: {:#?}", *component, (*camera_info).control);
-            // println!("camera info\ncontrol: {:#?}", (*camera_info1.control));
-            let status = ffi::mmal_component_create(component, &mut camera_info);
-            println!("2 component: {:#?}\ncamera_info: {:#?}", *component, (*camera_info).control);
-            // println!("camera info\ncontrol: {:#?}", (*camera_info1.control));
-            match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
-                    let mut found = false;
-                    // try smallest structure to largest as later firmwares reject
-                    // older structures
-                    // for s in info_structs{
-                        let mut param1: ffi::MMAL_PARAMETER_CAMERA_INFO_T = std::mem::uninitialized();
-                        let mut param: *mut ffi::MMAL_PARAMETER_CAMERA_INFO_T = &mut param1;
-                        param1.hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
-                        param1.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
-
-                        // let mut priv_: ffi::MMAL_PORT_PRIVATE_T = std::mem::zeroed();
-                        // (*camera_info1.control).priv_ = &mut priv_;
-                        println!("camera info status {:?}, param: {:#?}\ncontrol: {:#?}", status, param1.hdr, (*camera_info1.control).priv_);
-                        let status = ffi::mmal_port_parameter_get(camera_info1.control, &mut param1.hdr);
-                        found = true;
-                            // break;
-                    // }
-
-                    ffi::mmal_component_destroy(camera_info);
-
-                    if !found {
-                        Err(status)
-                    } else {
-                        Ok(*param)
-                    }
-                },
-                e => Err(e),
-            }
-        }
-    }
-
     pub fn new() -> Result<SimpleCamera, ffi::MMAL_STATUS_T> {
         /*
 
