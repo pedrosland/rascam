@@ -7,3 +7,4 @@ authors = ["Pedro Sland <pedrosland@gmail.com>"]
 mmal-sys = { path = "mmal-sys" }
 libc = "0.2"
 bytes = "0.4.4"
+image = "0.14.0"
