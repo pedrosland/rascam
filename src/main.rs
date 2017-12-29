@@ -2,15 +2,13 @@
 extern crate mmal_sys as ffi;
 extern crate libc;
 extern crate bytes;
+use ffi::MMAL_STATUS_T;
 use libc::{c_int, uint32_t, uint16_t, uint8_t, int32_t, size_t, c_char, c_void};
 use std::ffi::CStr;
 use std::mem;
 use std::ptr::Unique;
-use std::default::Default;
-use std::ptr;
 use std::fs::File;
 use std::io::prelude::*;
-use bytes::Bytes;
 use std::slice;
 use std::{thread, time};
 
@@ -50,7 +48,7 @@ fn main() {
 
     let mut camera = SimpleCamera::new().unwrap();
     println!("camera created");
-    camera.set_camera_num(0);
+    camera.set_camera_num(0).unwrap();
     println!("camera number set");
     camera.create_encoder().unwrap();
     println!("encoder created");
@@ -124,7 +122,7 @@ fn do_nothing() {
 struct CameraInfo {}
 
 impl CameraInfo {
-    pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T> {
+    pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut raw = Box::new(mem::zeroed());
             let component: *const ::std::os::raw::c_char =
@@ -135,7 +133,7 @@ impl CameraInfo {
             // println!("2 status: {:#?}\ncomponent: {:#?}\ncamera_info: {:#?}", status, *component, *raw3);
 
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
                     let mut found = false;
                     let mut param = Box::new(mem::zeroed());
                     let mut param3: *mut ffi::MMAL_PARAMETER_CAMERA_INFO_T = &mut *param;
@@ -144,7 +142,7 @@ impl CameraInfo {
 
                     // println!("3 camera info status {:?}\nparam: {:#?}\ncontrol: {:#?}", status, (*param3).hdr, (*(*raw3).control).priv_);
                     let status = ffi::mmal_port_parameter_get((*raw3).control, &mut (*param3).hdr);
-                    found = status == ffi::MMAL_STATUS_T::MMAL_SUCCESS;
+                    found = status == MMAL_STATUS_T::MMAL_SUCCESS;
 
                     ffi::mmal_component_destroy(raw3);
 
@@ -185,7 +183,7 @@ struct SimpleCamera {
 }
 
 impl SimpleCamera {
-    pub fn new() -> Result<SimpleCamera, ffi::MMAL_STATUS_T> {
+    pub fn new() -> Result<SimpleCamera, ffi::MMAL_STATUS_T::Type> {
         /*
 
             component_type = mmal.MMAL_COMPONENT_DEFAULT_CAMERA
@@ -215,8 +213,8 @@ impl SimpleCamera {
             let mut camera_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *camera;
             let status = ffi::mmal_component_create(component, &mut camera_ptr as *mut _);
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => Ok(SimpleCamera {
-                    camera: Unique::new(&mut *camera_ptr),
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(SimpleCamera {
+                    camera: Unique::new(&mut *camera_ptr).unwrap(),
                     outputs: Vec::new(),
                     enabled: false,
                     port_enabled: false,
@@ -239,7 +237,7 @@ impl SimpleCamera {
         }
     }
 
-    pub fn set_camera_num(&mut self, num: u8) -> Result<u8, ffi::MMAL_STATUS_T> {
+    pub fn set_camera_num(&mut self, num: u8) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut param = Box::new(mem::zeroed());
             let mut param3: *mut ffi::MMAL_PARAMETER_INT32_T = &mut *param;
@@ -251,13 +249,13 @@ impl SimpleCamera {
                 ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut (*param3).hdr);
             println!("status {:?}", status);
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => Ok(num),
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(num),
                 e => Err(e),
             }
         }
     }
 
-    pub fn create_encoder(&mut self) -> Result<u8, ffi::MMAL_STATUS_T> {
+    pub fn create_encoder(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut encoder = Box::new(mem::zeroed());
             let component: *const ::std::os::raw::c_char =
@@ -266,8 +264,8 @@ impl SimpleCamera {
             let status = ffi::mmal_component_create(component, &mut encoder_ptr as *mut _);
             println!("status {:?}", status);
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
-                    self.encoder = Unique::new(&mut *encoder_ptr);
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    self.encoder = Unique::new(&mut *encoder_ptr).unwrap();
                     self.encoder_created = true;
                     Ok(1)
                 }
@@ -276,7 +274,7 @@ impl SimpleCamera {
         }
     }
 
-    pub fn connect(&mut self) -> Result<u8, ffi::MMAL_STATUS_T> {
+    pub fn connect(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut connection: ffi::MMAL_CONNECTION_T = mem::zeroed();
             let mut state_ptr = &mut connection as *mut _;
@@ -287,12 +285,12 @@ impl SimpleCamera {
                 0,
             );
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
-                    self.connection = Unique::new(&mut connection);
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    self.connection = Unique::new(&mut connection).unwrap();
                     self.connection_created = true;
                     let status = ffi::mmal_connection_enable(self.connection.as_ptr());
                     match status {
-                        ffi::MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
+                        MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
                         e => Err(e),
                     }
                 }
@@ -301,7 +299,7 @@ impl SimpleCamera {
         }
     }
 
-    pub fn enable_control_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T> {
+    pub fn enable_control_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             //    let mut encoder = Box::new(self.camera.as_ref());
             //    let mut component: *const ::std::os::raw::c_char = ffi::MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER.as_ptr() as *const ::std::os::raw::c_char;
@@ -311,7 +309,7 @@ impl SimpleCamera {
             let status =
                 ffi::mmal_port_enable(self.camera.as_ref().control, Some(camera_control_callback));
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.port_enabled = true;
                     Ok(1)
                 }
@@ -320,7 +318,7 @@ impl SimpleCamera {
         }
     }
 
-    pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T> {
+    pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let self_ptr = self as *mut SimpleCamera;
             (**self.camera.as_ref().output.offset(2)).userdata = self_ptr as
@@ -331,7 +329,7 @@ impl SimpleCamera {
                 Some(camera_buffer_callback),
             );
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.still_port_enabled = true;
                     Ok(1)
                 }
@@ -343,7 +341,7 @@ impl SimpleCamera {
     pub fn set_camera_params(
         &mut self,
         info: ffi::MMAL_PARAMETER_CAMERA_INFO_CAMERA_T,
-    ) -> Result<u8, ffi::MMAL_STATUS_T> {
+    ) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut param = Box::new(mem::zeroed());
             let mut param3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
@@ -362,10 +360,24 @@ impl SimpleCamera {
             (*param3).fast_preview_resume = 0;
             (*param3).use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
 
+            mem::forget((*param3).max_stills_w);
+            mem::forget(param);
+            mem::forget(param3);
             let status =
                 ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut (*param3).hdr);
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    let mut param = Box::new(mem::zeroed());
+                    let mut newParam3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
+                    (*newParam3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
+                    (*newParam3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
+
+                    let status = ffi::mmal_port_parameter_get(self.camera.as_ref().control, &mut (*newParam3).hdr);
+                    println!("3 camera info {:?}\nparam: {:#?}\nnew param3: {:#?}\nparam3: {:#?}", status, (*newParam3).hdr, (*newParam3), (*param3));
+
+
+                    Ok(1)
+                },
                 e => Err(status),
             }
         }
@@ -374,7 +386,7 @@ impl SimpleCamera {
     pub fn set_camera_format(
         &mut self,
         info: ffi::MMAL_PARAMETER_CAMERA_INFO_CAMERA_T,
-    ) -> Result<u8, ffi::MMAL_STATUS_T> {
+    ) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let output = self.camera.as_ref().output;
             let output_num = self.camera.as_ref().output_num;
@@ -395,32 +407,37 @@ impl SimpleCamera {
             let still_port_ptr = *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as
                                            *mut *mut ffi::MMAL_PORT_T);
             let preview_port = *preview_port_ptr;
+            mem::forget(preview_port);
             let mut video_port = *video_port_ptr;
+            mem::forget(video_port);
             let mut still_port = *still_port_ptr;
+            mem::forget(still_port);
 
             // TODO:
             //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
-            let mut format = *preview_port.format;
+            let mut format = preview_port.format;
+            mem::forget(format);
 
-            format.encoding = ffi::MMAL_ENCODING_OPAQUE;
-            format.encoding_variant = ffi::MMAL_ENCODING_I420;
+            (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
 
-            let mut es = *format.es;
+            let mut es = (*format).es;
+            mem::forget(es);
 
             //   Use a full FOV 4:3 mode
-            es.video.width = ffi::vcos_align_up(1024, 32);
-            es.video.height = ffi::vcos_align_up(768, 16);
-            es.video.crop.x = 0;
-            es.video.crop.y = 0;
-            es.video.crop.width = 1024;
-            es.video.crop.height = 768;
-            es.video.frame_rate.num = PREVIEW_FRAME_RATE_NUM;
-            es.video.frame_rate.den = PREVIEW_FRAME_RATE_DEN;
+            (*es).video.width = ffi::vcos_align_up(1024, 32);
+            (*es).video.height = ffi::vcos_align_up(768, 16);
+            (*es).video.crop.x = 0;
+            (*es).video.crop.y = 0;
+            (*es).video.crop.width = 1024;
+            (*es).video.crop.height = 768;
+            (*es).video.frame_rate.num = PREVIEW_FRAME_RATE_NUM;
+            (*es).video.frame_rate.den = PREVIEW_FRAME_RATE_DEN;
 
             let mut status = ffi::mmal_port_format_commit(preview_port_ptr);
 
-            if status != ffi::MMAL_STATUS_T::MMAL_SUCCESS {
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(status);
             }
 
@@ -428,7 +445,7 @@ impl SimpleCamera {
             ffi::mmal_format_full_copy(video_port.format, preview_port.format);
             status = ffi::mmal_port_format_commit(video_port_ptr);
 
-            if status != ffi::MMAL_STATUS_T::MMAL_SUCCESS {
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(status);
             }
 
@@ -436,7 +453,8 @@ impl SimpleCamera {
                 video_port.buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
             }
 
-            format = *still_port.format;
+            format = still_port.format;
+            mem::forget(format);
 
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L799
 
@@ -451,21 +469,23 @@ impl SimpleCamera {
             // };
             // format.encoding_variant = 0; //Irrelevant when not in opaque mode
 
-            // format.encoding = ffi::MMAL_ENCODING_JPEG;
+            // (*still_port.format).encoding = ffi::MMAL_ENCODING_JPEG;
+            // (*still_port.format).encoding_variant = ffi::MMAL_ENCODING_JPEG;
 
-            format.encoding = ffi::MMAL_ENCODING_I420;
-            format.encoding_variant = ffi::MMAL_ENCODING_I420;
+            (*format).encoding = ffi::MMAL_ENCODING_I420;
+            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
 
             // es = elementary stream
-            es = *format.es;
-            es.video.width = ffi::vcos_align_up(info.max_width, 32);
-            es.video.height = ffi::vcos_align_up(info.max_height, 16);
-            es.video.crop.x = 0;
-            es.video.crop.y = 0;
-            es.video.crop.width = info.max_width as i32;
-            es.video.crop.height = info.max_height as i32;
-            es.video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
-            es.video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
+            es = (*format).es;
+            mem::forget(es);
+            (*es).video.width = ffi::vcos_align_up(info.max_width, 32);
+            (*es).video.height = ffi::vcos_align_up(info.max_height, 16);
+            (*es).video.crop.x = 0;
+            (*es).video.crop.y = 0;
+            (*es).video.crop.width = info.max_width as i32;
+            (*es).video.crop.height = info.max_height as i32;
+            (*es).video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
+            (*es).video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
 
             if still_port.buffer_size < still_port.buffer_size_min {
                 still_port.buffer_size = still_port.buffer_size_min;
@@ -480,10 +500,12 @@ impl SimpleCamera {
             );
 
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG);
                     let status = ffi::mmal_port_format_commit(still_port_ptr);
+                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG);
                     match status {
-                        ffi::MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
+                        MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
                         e => Err(status),
                     }
                 }
@@ -495,21 +517,21 @@ impl SimpleCamera {
         }
     }
 
-    pub fn enable(&mut self) -> Result<u8, ffi::MMAL_STATUS_T> {
+    pub fn enable(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let status = ffi::mmal_component_enable(&mut *self.camera.as_ptr() as *mut _);
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.enabled = true;
                     //
                     //            let status = ffi::mmal_port_enable(self.encoder.as_ref().control, None);
                     //            match status {
-                    //                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                    //                MMAL_STATUS_T::MMAL_SUCCESS => {
                     //                    self.encoder_port_enabled = true;
                     //
                     //                   let status = ffi::mmal_component_enable(self.encoder.as_ptr());
                     //                   match status {
-                    //                       ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                    //                       MMAL_STATUS_T::MMAL_SUCCESS => {
                     //                           self.encoder_enabled = true;
                     Ok(1)
                     //                       },
@@ -524,11 +546,11 @@ impl SimpleCamera {
         }
     }
 
-    pub fn enable_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T> {
+    pub fn enable_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let status = ffi::mmal_component_enable(&mut *self.preview.as_ptr() as *mut _);
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
                     // TODO: fix
                     // self.enabled = true;
                     Ok(())
@@ -555,13 +577,13 @@ impl SimpleCamera {
                 );
                 Err("Null pool".to_string())
             } else {
-                self.pool = Unique::new(pool);
+                self.pool = Unique::new(pool).unwrap();
                 Ok(())
             }
         }
     }
 
-    pub fn create_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T> {
+    pub fn create_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         unsafe {
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiPreview.c#L70
             let mut preview = Box::new(mem::zeroed());
@@ -571,8 +593,8 @@ impl SimpleCamera {
                 &mut preview_ptr as *mut _,
             );
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
-                    self.preview = Unique::new(&mut *preview_ptr);
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    self.preview = Unique::new(&mut *preview_ptr).unwrap();
                     self.preview_created = true;
                     Ok(())
                 }
@@ -581,7 +603,7 @@ impl SimpleCamera {
         }
     }
 
-    pub fn connect_ports(&mut self) -> Result<(), ffi::MMAL_STATUS_T> {
+    pub fn connect_ports(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut connection = Box::new(mem::zeroed());
             let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = &mut *connection;
@@ -600,7 +622,7 @@ impl SimpleCamera {
                     ffi::MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT,
             );
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
                     // self.preview = Unique::new(&mut *preview_ptr);
                     // self.preview_created = true;
                     Ok(())
@@ -610,7 +632,7 @@ impl SimpleCamera {
         }
     }
 
-    pub fn take(&mut self) -> Result<(), ffi::MMAL_STATUS_T> {
+    pub fn take(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         let sleep_duration = time::Duration::from_millis(5000);
         thread::sleep(sleep_duration);
 
@@ -622,7 +644,7 @@ impl SimpleCamera {
                 0,
             );
             match status {
-                ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
 
                     // Send all the buffers to the camera output port
                     let num = ffi::mmal_queue_length(self.pool.as_ref().queue as *mut _);
@@ -638,18 +660,18 @@ impl SimpleCamera {
 
                         if buffer.is_null() {
                             println!("Unable to get a required buffer {} from pool queue", i);
-                            status = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
+                            status = MMAL_STATUS_T::MMAL_STATUS_MAX;
                             break;
                         } else {
                             status = ffi::mmal_port_send_buffer(still_port_ptr, buffer);
-                            if status != ffi::MMAL_STATUS_T::MMAL_SUCCESS {
+                            if status != MMAL_STATUS_T::MMAL_SUCCESS {
                                 break;
                             }
                         }
                     }
 
                     match status {
-                        ffi::MMAL_STATUS_T::MMAL_SUCCESS => {
+                        MMAL_STATUS_T::MMAL_SUCCESS => {
                             status = ffi::mmal_port_parameter_set_boolean(
                                 still_port_ptr,
                                 ffi::MMAL_PARAMETER_CAPTURE as u32,
@@ -657,7 +679,7 @@ impl SimpleCamera {
                             );
 
                             match status {
-                                ffi::MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
+                                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
                                 e => {
                                     println!("Could not set camera capture boolean");
                                     Err(e)
@@ -745,7 +767,7 @@ unsafe extern "C" fn camera_buffer_callback(
 
     // and send one back to the port (if still open)
     if (*port).is_enabled > 0 {
-        let mut status: ffi::MMAL_STATUS_T = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
+        let mut status: ffi::MMAL_STATUS_T::Type = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
         let new_buffer: *mut ffi::MMAL_BUFFER_HEADER_T =
             ffi::mmal_queue_get(pdata.pool.as_ref().queue);
 
@@ -754,7 +776,7 @@ unsafe extern "C" fn camera_buffer_callback(
             status = ffi::mmal_port_send_buffer(port, new_buffer);
         }
 
-        if new_buffer.is_null() || status != ffi::MMAL_STATUS_T::MMAL_SUCCESS {
+        if new_buffer.is_null() || status != MMAL_STATUS_T::MMAL_SUCCESS {
             println!("Unable to return the buffer to the camera still port");
         }
     }
