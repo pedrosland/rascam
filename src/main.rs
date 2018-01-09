@@ -2,6 +2,7 @@
 extern crate mmal_sys as ffi;
 extern crate libc;
 extern crate bytes;
+extern crate cv;
 use ffi::MMAL_STATUS_T;
 use libc::{c_int, uint32_t, uint16_t, uint8_t, int32_t, size_t, c_char, c_void};
 use std::ffi::CStr;
@@ -11,6 +12,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::slice;
 use std::{thread, time};
+use cv::*;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -180,6 +182,7 @@ struct SimpleCamera {
 
     file: File,
     file_open: bool,
+    file2: File,
 }
 
 impl SimpleCamera {
@@ -231,6 +234,7 @@ impl SimpleCamera {
                     preview: mem::zeroed(),
                     file: mem::uninitialized(),
                     file_open: false,
+                    file2: mem::uninitialized(),
                 }),
                 e => Err(e),
             }
@@ -419,8 +423,11 @@ impl SimpleCamera {
             let mut format = preview_port.format;
             mem::forget(format);
 
-            (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
-            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+            // (*format).encoding = ffi::MMAL_ENCODING_BGR24;
+            (*format).encoding = ffi::MMAL_ENCODING_RGB24;
+            // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+            // (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
 
             let mut es = (*format).es;
             mem::forget(es);
@@ -462,28 +469,30 @@ impl SimpleCamera {
              * On firmware prior to June 2016, camera and video_splitter
              * had BGR24 and RGB24 support reversed.
              */
-            // format.encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 1 {
-            //     ffi::MMAL_ENCODING_RGB24
-            // } else {
-            //     ffi::MMAL_ENCODING_BGR24
-            // };
-            // format.encoding_variant = 0; //Irrelevant when not in opaque mode
+            (*format).encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 0 {
+                ffi::MMAL_ENCODING_RGB24
+            } else {
+                ffi::MMAL_ENCODING_BGR24
+            };
+            (*format).encoding_variant = 0; //Irrelevant when not in opaque mode
 
             // (*still_port.format).encoding = ffi::MMAL_ENCODING_JPEG;
             // (*still_port.format).encoding_variant = ffi::MMAL_ENCODING_JPEG;
 
-            (*format).encoding = ffi::MMAL_ENCODING_I420;
-            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+            // (*format).encoding = ffi::MMAL_ENCODING_I420;
+            // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+            // (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
 
             // es = elementary stream
             es = (*format).es;
             mem::forget(es);
-            (*es).video.width = ffi::vcos_align_up(info.max_width, 32);
-            (*es).video.height = ffi::vcos_align_up(info.max_height, 16);
+            (*es).video.width = ffi::vcos_align_up(96, 32);
+            (*es).video.height = ffi::vcos_align_up(96, 16);
             (*es).video.crop.x = 0;
             (*es).video.crop.y = 0;
-            (*es).video.crop.width = info.max_width as i32;
-            (*es).video.crop.height = info.max_height as i32;
+            (*es).video.crop.width = 96 as i32;
+            (*es).video.crop.height = 96 as i32;
             (*es).video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
             (*es).video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
 
@@ -501,9 +510,9 @@ impl SimpleCamera {
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
-                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG);
+                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}\nencoding rgb24: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG, ffi::MMAL_ENCODING_RGB24);
                     let status = ffi::mmal_port_format_commit(still_port_ptr);
-                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG);
+                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}\nencoding rgb24: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG, ffi::MMAL_ENCODING_RGB24);
                     match status {
                         MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
                         e => Err(status),
@@ -726,6 +735,7 @@ unsafe extern "C" fn camera_buffer_callback(
         if !pdata.file_open {
             pdata.file_open = true;
             pdata.file = File::create("image.rgb24").unwrap();
+            pdata.file2 = File::create("image.png").unwrap();
         }
 
         if bytes_to_write > 0
@@ -733,18 +743,48 @@ unsafe extern "C" fn camera_buffer_callback(
         {
             ffi::mmal_buffer_header_mem_lock(buffer);
 
+            let s = slice::from_raw_parts(
+                (*buffer).data,
+                bytes_to_write as usize,
+            );
+
             pdata
                 .file
-                .write_all(slice::from_raw_parts(
-                    (*buffer).data,
-                    bytes_to_write as usize,
-                ))
+                .write_all(s)
                 .expect("Saving raw buffer image failed");
             // bytes_written = fwrite(buffer.data, 1, bytes_to_write, pdata->file_handle);
 
             // let img = image::ImageBuffer::from_raw(2592, 1944, slice::from_raw_parts((*buffer).data, bytes_to_write as usize)).expect("Opening image failed");
             // let mut out = File::create("image.jpg").unwrap();
             // img.save("image.jpg").expect("Saving image failed");
+
+            // OpenCV try #1:
+            // let mat = Mat::imdecode(&s, cv::imgcodecs::ImreadModes::ImreadColor);
+            // mat.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
+            //
+            // let s2 = mat.imencode("png", vec!()).expect("Could not create PNG");
+
+            // OpenCV try #2:
+            // TODO: fix this
+            // let size = (3280 * 2463 * 3) as usize;
+            // println!("calculated size: {}, got size: {}", size, bytes_to_write);
+            // let mut vec = Vec::with_capacity(bytes_to_write as usize);
+            //
+            // vec.set_len(bytes_to_write as usize);
+            // std::ptr::copy((*buffer).data, vec.as_mut_ptr(), bytes_to_write as usize);
+            //
+            // let new_image = Mat::from_buffer(3280, 2463, CvType::Cv8UC3 as i32, &vec);
+            // // new_image.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
+            // new_image.cvt_color(cv::imgproc::ColorConversionCodes::YUV2BGR_IYUV);
+            //
+            // // There's also imwrite()
+            // let s2 = new_image.imencode(".png", vec!()).expect("Could not create PNG");
+            //
+            // pdata.file2
+            //      .write_all(&s2)
+            //      .expect("Saving png raw buffer image failed");
+            //
+            // mem::forget(vec);
 
             ffi::mmal_buffer_header_mem_unlock(buffer);
         }
