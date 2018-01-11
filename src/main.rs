@@ -594,8 +594,12 @@ impl SimpleCamera {
     pub fn create_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         unsafe {
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiPreview.c#L70
+            // https://github.com/waveform80/picamera/issues/22
+            // and the commit message that closed issue #22
             let mut preview = Box::new(mem::zeroed());
             let mut preview_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *preview;
+            // Note that there appears to be no constant for the null sink but it does exist in the
+            // binaries.
             let status = ffi::mmal_component_create(
                 b"vc.null_sink\x00".as_ptr(),
                 &mut preview_ptr as *mut _,
