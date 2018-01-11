@@ -182,7 +182,6 @@ struct SimpleCamera {
 
     file: File,
     file_open: bool,
-    file2: File,
 }
 
 impl SimpleCamera {
@@ -234,7 +233,7 @@ impl SimpleCamera {
                     preview: mem::zeroed(),
                     file: mem::uninitialized(),
                     file_open: false,
-                    file2: mem::uninitialized(),
+                    // zero_copy_cb:
                 }),
                 e => Err(e),
             }
@@ -469,7 +468,7 @@ impl SimpleCamera {
              * On firmware prior to June 2016, camera and video_splitter
              * had BGR24 and RGB24 support reversed.
              */
-            (*format).encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 0 {
+            (*format).encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 1 {
                 ffi::MMAL_ENCODING_RGB24
             } else {
                 ffi::MMAL_ENCODING_BGR24
@@ -487,12 +486,13 @@ impl SimpleCamera {
             // es = elementary stream
             es = (*format).es;
             mem::forget(es);
-            (*es).video.width = ffi::vcos_align_up(96, 32);
-            (*es).video.height = ffi::vcos_align_up(96, 16);
+
+            (*es).video.width = ffi::vcos_align_up(info.max_width, 32);
+            (*es).video.height = ffi::vcos_align_up(info.max_height, 16);
             (*es).video.crop.x = 0;
             (*es).video.crop.y = 0;
-            (*es).video.crop.width = 96 as i32;
-            (*es).video.crop.height = 96 as i32;
+            (*es).video.crop.width = info.max_width as i32;
+            (*es).video.crop.height = info.max_height as i32;
             (*es).video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
             (*es).video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
 
@@ -510,9 +510,8 @@ impl SimpleCamera {
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
-                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}\nencoding rgb24: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG, ffi::MMAL_ENCODING_RGB24);
+                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nes: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}\nencoding rgb24: {:?}", still_port, *still_port.format, (*(*still_port.format).es).video, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG, ffi::MMAL_ENCODING_RGB24);
                     let status = ffi::mmal_port_format_commit(still_port_ptr);
-                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}\nencoding rgb24: {:?}", still_port, *still_port.format, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG, ffi::MMAL_ENCODING_RGB24);
                     match status {
                         MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
                         e => Err(status),
@@ -641,6 +640,7 @@ impl SimpleCamera {
         }
     }
 
+    // TODO: callback when complete? future? stream?
     pub fn take(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         let sleep_duration = time::Duration::from_millis(5000);
         thread::sleep(sleep_duration);
@@ -688,7 +688,10 @@ impl SimpleCamera {
                             );
 
                             match status {
-                                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
+                                MMAL_STATUS_T::MMAL_SUCCESS => {
+                                    println!("Started capture");
+                                    Ok(())
+                                },
                                 e => {
                                     println!("Could not set camera capture boolean");
                                     Err(e)
@@ -727,6 +730,8 @@ unsafe extern "C" fn camera_buffer_callback(
 
     println!("I'm called from C. buffer length: {}", bytes_to_write);
 
+    // TODO: this is probably unsafe as Rust has no knowledge of this so it could have already been
+    // dropped!
     let pdata_ptr: *mut SimpleCamera = (*port).userdata as *mut SimpleCamera;
     let mut pdata: &mut SimpleCamera = &mut *pdata_ptr;
 
@@ -734,8 +739,8 @@ unsafe extern "C" fn camera_buffer_callback(
 
         if !pdata.file_open {
             pdata.file_open = true;
-            pdata.file = File::create("image.rgb24").unwrap();
-            pdata.file2 = File::create("image.png").unwrap();
+            pdata.file = File::create("image1.rgb").unwrap();
+            // pdata.file2 = File::create("image2.rgb").unwrap();
         }
 
         if bytes_to_write > 0
@@ -750,7 +755,7 @@ unsafe extern "C" fn camera_buffer_callback(
 
             pdata
                 .file
-                .write_all(s)
+                .write_all(&s)
                 .expect("Saving raw buffer image failed");
             // bytes_written = fwrite(buffer.data, 1, bytes_to_write, pdata->file_handle);
 
@@ -773,6 +778,8 @@ unsafe extern "C" fn camera_buffer_callback(
             // vec.set_len(bytes_to_write as usize);
             // std::ptr::copy((*buffer).data, vec.as_mut_ptr(), bytes_to_write as usize);
             //
+            // // It would be nice if something like this existed in the rust bindings:
+            // // https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#a51615ebf17a64c968df0bf49b4de6a3a
             // let new_image = Mat::from_buffer(3280, 2463, CvType::Cv8UC3 as i32, &vec);
             // // new_image.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
             // new_image.cvt_color(cv::imgproc::ColorConversionCodes::YUV2BGR_IYUV);
@@ -785,6 +792,22 @@ unsafe extern "C" fn camera_buffer_callback(
             //      .expect("Saving png raw buffer image failed");
             //
             // mem::forget(vec);
+
+            // THIS WORKS:
+            // let size = (3280 * 2464 * 3) as usize;
+            // let mut s2 = Vec::with_capacity(bytes_to_write as usize);
+            // let mem_width = ffi::vcos_align_up(3280, 32) as usize;
+            // let data_length = 3280 * 3;
+            //
+            // for i in 0..2464 {
+            //     // s2[i*3280*3..(i+1)*3280*3].copy_from_slice(&s[i*mem_width*3..(i+1)*mem_width*3]);
+            //     let row_offset = i*mem_width*3;
+            //     s2.extend(&s[row_offset..row_offset+data_length]);
+            // }
+            //
+            // pdata.file2
+            //      .write_all(&s2)
+            //      .expect("Saving modified raw buffer image failed");
 
             ffi::mmal_buffer_header_mem_unlock(buffer);
         }
@@ -825,6 +848,7 @@ unsafe extern "C" fn camera_buffer_callback(
     //    {
     //       vcos_semaphore_post(&(pData->complete_semaphore));
     // }
+    println!("I'm done with c");
 }
 
 #[no_mangle]
