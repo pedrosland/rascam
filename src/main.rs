@@ -51,19 +51,8 @@ fn main() {
         // note that this doesn't run destructors
         ::std::process::exit(1);
     }
-    println!("Found {} camera(s)", info.num_cameras);
+    println!("{}", info);
 
-    // We can't iterate over all cameras because we will always have 4.
-    // Alternatively, we could iterate and break early. Not sure if that is more rust-y
-    for index in 0..info.num_cameras {
-        let camera = info.cameras[index as usize];
-        println!(
-            "  {} {}x{}",
-            ::std::str::from_utf8(&camera.camera_name).unwrap(),
-            camera.max_width,
-            camera.max_height
-        );
-    }
 
     let mut camera = SeriousCamera::new().unwrap();
     println!("camera created");
