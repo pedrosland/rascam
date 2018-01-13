@@ -3,6 +3,7 @@ extern crate mmal_sys as ffi;
 extern crate libc;
 extern crate bytes;
 extern crate cv;
+extern crate futures;
 use ffi::MMAL_STATUS_T;
 use libc::{c_int, uint32_t, uint16_t, uint8_t, int32_t, size_t, c_char, c_void};
 use std::ffi::CStr;
@@ -11,8 +12,10 @@ use std::ptr::Unique;
 use std::fs::File;
 use std::io::prelude::*;
 use std::slice;
+use std::sync::{Once, ONCE_INIT};
 use std::{thread, time};
 use cv::*;
+use futures::Future;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -24,10 +27,24 @@ const VIDEO_OUTPUT_BUFFERS_NUM: u32 = 3;
 const PREVIEW_FRAME_RATE_NUM: i32 = 0;
 const PREVIEW_FRAME_RATE_DEN: i32 = 1;
 
-fn main() {
-    do_nothing();
+type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
 
-    let info = CameraInfo::info().unwrap();
+// This function must be called before any mmal work. Failure to do so will cause errors like:
+//
+// mmal: mmal_component_create_core: could not find component 'vc.camera_info'
+//
+// See this for more info https://github.com/thaytan/gst-rpicamsrc/issues/28
+fn init() {
+    static INIT: Once = ONCE_INIT;
+    INIT.call_once(|| unsafe {
+        ffi::bcm_host_init();
+        ffi::vcos_init();
+        ffi::mmal_vc_init();
+    });
+}
+
+fn main() {
+    let info = info().unwrap();
     // println!("camera info {:?}", info);
     if info.num_cameras < 1 {
         println!("Found 0 cameras. Exiting");
@@ -48,7 +65,7 @@ fn main() {
         );
     }
 
-    let mut camera = SimpleCamera::new().unwrap();
+    let mut camera = SeriousCamera::new().unwrap();
     println!("camera created");
     camera.set_camera_num(0).unwrap();
     println!("camera number set");
@@ -102,66 +119,42 @@ fn main() {
     // src->capture_config.encoding = MMAL_ENCODING_BGR24
 }
 
-/**
- * do_nothing exists purely to ensure that the libraries we need are actually linked.
- * Something does some optimization (perhaps --as-needed) and doesn't link unused libraries.
- * Unfortunatly, without these, we get the following error:
- *
- * mmal: mmal_component_create_core: could not find component 'vc.ril.camera'
- *
- * See this for more info https://github.com/thaytan/gst-rpicamsrc/issues/28
- */
-fn do_nothing() {
+pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T::Type> {
+    init();
+
     unsafe {
-        ffi::bcm_host_init();
-        ffi::vcos_init();
-        ffi::mmal_vc_init();
-    }
-}
+        let mut mem = Box::new(mem::zeroed());
+        let info_type: *const ::std::os::raw::c_char =
+            ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const ::std::os::raw::c_char;
+        let mut component: *mut ffi::MMAL_COMPONENT_T = &mut *mem;
+        let status = ffi::mmal_component_create(info_type, &mut component as *mut _);
 
-#[repr(C)]
-#[derive(Debug)]
-struct CameraInfo {}
+        match status {
+            MMAL_STATUS_T::MMAL_SUCCESS => {
+                let mut found = false;
+                let mut mem = Box::new(mem::zeroed());
+                let mut info: *mut ffi::MMAL_PARAMETER_CAMERA_INFO_T = &mut *mem;
+                (*info).hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
+                (*info).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
 
-impl CameraInfo {
-    pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T::Type> {
-        unsafe {
-            let mut raw = Box::new(mem::zeroed());
-            let component: *const ::std::os::raw::c_char =
-                ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const ::std::os::raw::c_char;
-            let mut raw3: *mut ffi::MMAL_COMPONENT_T = &mut *raw;
-            // println!("component: {:#?}\ncamera_info: {:#?}", *component, *raw3);
-            let status = ffi::mmal_component_create(component, &mut raw3 as *mut _);
-            // println!("2 status: {:#?}\ncomponent: {:#?}\ncamera_info: {:#?}", status, *component, *raw3);
+                let status = ffi::mmal_port_parameter_get((*component).control, &mut (*info).hdr);
+                found = status == MMAL_STATUS_T::MMAL_SUCCESS;
 
-            match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => {
-                    let mut found = false;
-                    let mut param = Box::new(mem::zeroed());
-                    let mut param3: *mut ffi::MMAL_PARAMETER_CAMERA_INFO_T = &mut *param;
-                    (*param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
-                    (*param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
+                ffi::mmal_component_destroy(component);
 
-                    // println!("3 camera info status {:?}\nparam: {:#?}\ncontrol: {:#?}", status, (*param3).hdr, (*(*raw3).control).priv_);
-                    let status = ffi::mmal_port_parameter_get((*raw3).control, &mut (*param3).hdr);
-                    found = status == MMAL_STATUS_T::MMAL_SUCCESS;
-
-                    ffi::mmal_component_destroy(raw3);
-
-                    if !found {
-                        Err(status)
-                    } else {
-                        Ok(*param3)
-                    }
+                if !found {
+                    Err(status)
+                } else {
+                    Ok(*info)
                 }
-                e => Err(e),
             }
+            e => Err(e),
         }
     }
 }
 
 #[repr(C)]
-struct SimpleCamera {
+struct SeriousCamera {
     camera: Unique<ffi::MMAL_COMPONENT_T>,
     outputs: Vec<ffi::MMAL_PORT_T>,
     enabled: bool,
@@ -184,8 +177,9 @@ struct SimpleCamera {
     file_open: bool,
 }
 
-impl SimpleCamera {
-    pub fn new() -> Result<SimpleCamera, ffi::MMAL_STATUS_T::Type> {
+impl SeriousCamera {
+    pub fn new() -> Result<SeriousCamera, ffi::MMAL_STATUS_T::Type> {
+        init();
         /*
 
             component_type = mmal.MMAL_COMPONENT_DEFAULT_CAMERA
@@ -215,7 +209,7 @@ impl SimpleCamera {
             let mut camera_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *camera;
             let status = ffi::mmal_component_create(component, &mut camera_ptr as *mut _);
             match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => Ok(SimpleCamera {
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(SeriousCamera {
                     camera: Unique::new(&mut *camera_ptr).unwrap(),
                     outputs: Vec::new(),
                     enabled: false,
@@ -323,7 +317,7 @@ impl SimpleCamera {
 
     pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
-            let self_ptr = self as *mut SimpleCamera;
+            let self_ptr = self as *mut SeriousCamera;
             (**self.camera.as_ref().output.offset(2)).userdata = self_ptr as
                 *mut ffi::MMAL_PORT_USERDATA_T;
 
@@ -694,6 +688,19 @@ impl SimpleCamera {
                             match status {
                                 MMAL_STATUS_T::MMAL_SUCCESS => {
                                     println!("Started capture");
+                                    // TODO: syncronisation
+                                    // How to handle both buffers - here you are
+                                    // and zero-copy buffers - give that back when you're done?
+                                    // Should SeriousCamera support both?
+                                    //
+                                    // thread park/unpark?
+                                    //
+                                    // mpsc::sync_channel with size 0?
+                                    //
+                                    // "oneshot" and "channel" futures?
+                                    // https://tokio.rs/docs/going-deeper-futures/synchronization/
+                                    //
+                                    //
                                     Ok(())
                                 },
                                 e => {
@@ -736,8 +743,8 @@ unsafe extern "C" fn camera_buffer_callback(
 
     // TODO: this is probably unsafe as Rust has no knowledge of this so it could have already been
     // dropped!
-    let pdata_ptr: *mut SimpleCamera = (*port).userdata as *mut SimpleCamera;
-    let mut pdata: &mut SimpleCamera = &mut *pdata_ptr;
+    let pdata_ptr: *mut SeriousCamera = (*port).userdata as *mut SeriousCamera;
+    let mut pdata: &mut SeriousCamera = &mut *pdata_ptr;
 
     if !pdata_ptr.is_null() {
 
@@ -901,7 +908,7 @@ unsafe extern "C" fn camera_control_callback(
     ffi::mmal_buffer_header_release(buffer);
 }
 
-impl Drop for SimpleCamera {
+impl Drop for SeriousCamera {
     fn drop(&mut self) {
         unsafe {
             if self.connection_created {

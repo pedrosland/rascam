@@ -21,6 +21,8 @@ There should be settings for brightness, exposure, burst mode, image format etc 
 
 Should we provide a preview API?
 
+What API should be used for getting camera info? Note that this lists both cameras and "flashes".
+
 ### `SimpleCamera::new() -> SimpleCamera`
 
 ### `set_camera_num(u8) -> Result<MMAL_PARAMETER_CAMERA_INFO_CAMERA_T, MMAL_STATUS_T>`
