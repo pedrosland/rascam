@@ -3,19 +3,21 @@ extern crate mmal_sys as ffi;
 extern crate libc;
 extern crate bytes;
 extern crate cv;
-extern crate futures;
+// extern crate futures;
 use ffi::MMAL_STATUS_T;
-use libc::{c_int, uint32_t, uint16_t, uint8_t, int32_t, size_t, c_char, c_void};
-use std::ffi::CStr;
+use std::fmt;
+use std::os::raw::c_char;
 use std::mem;
+use std::ptr;
 use std::ptr::Unique;
 use std::fs::File;
 use std::io::prelude::*;
 use std::slice;
+use std::string::String;
 use std::sync::{Once, ONCE_INIT};
 use std::{thread, time};
-use cv::*;
-use futures::Future;
+//use cv::*;
+// use futures::Future;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -27,7 +29,47 @@ const VIDEO_OUTPUT_BUFFERS_NUM: u32 = 3;
 const PREVIEW_FRAME_RATE_NUM: i32 = 0;
 const PREVIEW_FRAME_RATE_DEN: i32 = 1;
 
-type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
+// type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
+
+pub struct Info {
+    pub cameras: Vec<CameraInfo>,
+    // TODO: flashes?
+}
+
+impl fmt::Display for Info {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Found {} camera(s)", self.cameras.len()).unwrap();
+
+        // We can't iterate over all cameras because we will always have 4.
+        // Alternatively, we could iterate and break early. Not sure if that is more rust-y
+        self.cameras.iter().for_each(|camera| {
+            write!(f, "\n  {}", camera).unwrap();
+        });
+
+        Ok(())
+    }
+}
+
+
+pub struct CameraInfo {
+    pub port_id: u32,
+    pub max_width: u32,
+    pub max_height: u32,
+    pub lens_present: bool,
+    pub camera_name: String,
+}
+
+impl fmt::Display for CameraInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {}x{}",
+            &self.camera_name,
+            self.max_width,
+            self.max_height
+        )
+    }
+}
 
 // This function must be called before any mmal work. Failure to do so will cause errors like:
 //
@@ -46,13 +88,25 @@ fn init() {
 fn main() {
     let info = info().unwrap();
     // println!("camera info {:?}", info);
-    if info.num_cameras < 1 {
+    if info.cameras.len() < 1 {
         println!("Found 0 cameras. Exiting");
         // note that this doesn't run destructors
         ::std::process::exit(1);
     }
     println!("{}", info);
 
+    if false {
+        simple(&info.cameras[0]);
+    } else {
+        serious(&info.cameras[0]);
+    }
+}
+
+fn simple(info: &CameraInfo) {
+    // let mut camera = SimpleCamera::new().unwrap();
+}
+
+fn serious(info: &CameraInfo) {
 
     let mut camera = SeriousCamera::new().unwrap();
     println!("camera created");
@@ -62,7 +116,7 @@ fn main() {
     println!("encoder created");
     camera.enable_control_port().unwrap();
     println!("camera control port enabled");
-    camera.set_camera_params(info.cameras[0]).unwrap();
+    camera.set_camera_params(info).unwrap();
     println!("camera params set");
 
     /*
@@ -70,7 +124,7 @@ fn main() {
    if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
    video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
   */
-    camera.set_camera_format(info.cameras[0]).unwrap();
+    camera.set_camera_format(info).unwrap();
     println!("set camera format");
     camera.enable().unwrap();
     println!("camera enabled");
@@ -108,42 +162,54 @@ fn main() {
     // src->capture_config.encoding = MMAL_ENCODING_BGR24
 }
 
-pub fn info() -> Result<ffi::MMAL_PARAMETER_CAMERA_INFO_T, ffi::MMAL_STATUS_T::Type> {
+pub fn info() -> Result<Info, &'static str> {
     init();
 
     unsafe {
-        let mut mem = Box::new(mem::zeroed());
-        let info_type: *const ::std::os::raw::c_char =
-            ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const ::std::os::raw::c_char;
-        let mut component: *mut ffi::MMAL_COMPONENT_T = &mut *mem;
+        let info_type: *const c_char =
+            ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const c_char;
+        let mut component: *mut ffi::MMAL_COMPONENT_T = ptr::null_mut();
         let status = ffi::mmal_component_create(info_type, &mut component as *mut _);
 
         match status {
             MMAL_STATUS_T::MMAL_SUCCESS => {
-                let mut found = false;
-                let mut mem = Box::new(mem::zeroed());
-                let mut info: *mut ffi::MMAL_PARAMETER_CAMERA_INFO_T = &mut *mem;
-                (*info).hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
-                (*info).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
+                let mut info: ffi::MMAL_PARAMETER_CAMERA_INFO_T = mem::uninitialized();
+                info.hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
+                info.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
 
-                let status = ffi::mmal_port_parameter_get((*component).control, &mut (*info).hdr);
-                found = status == MMAL_STATUS_T::MMAL_SUCCESS;
+                let status = ffi::mmal_port_parameter_get((*component).control, &mut info.hdr);
 
-                ffi::mmal_component_destroy(component);
+                match status {
+                    MMAL_STATUS_T::MMAL_SUCCESS => {
+                        let cameras = info.cameras.iter().take(info.num_cameras as usize).map(|cam| {
+                            CameraInfo {
+                                port_id: cam.port_id,
+                                max_width: cam.max_width,
+                                max_height: cam.max_height,
+                                lens_present: if cam.lens_present == 1 { true } else { false },
+                                camera_name: ::std::str::from_utf8(&cam.camera_name).unwrap().to_owned(),
+                            }
+                        }).collect();
 
-                if !found {
-                    Err(status)
-                } else {
-                    Ok(*info)
+                        ffi::mmal_component_destroy(component);
+
+                        Ok(Info{
+                            cameras: cameras,
+                        })
+                    },
+                    _ => {
+                        ffi::mmal_component_destroy(component);
+                        Err("Failed to get camera info")
+                    },
                 }
             }
-            e => Err(e),
+            _ => Err("Failed to create camera component"),
         }
     }
 }
 
 #[repr(C)]
-struct SeriousCamera {
+pub struct SeriousCamera {
     camera: Unique<ffi::MMAL_COMPONENT_T>,
     outputs: Vec<ffi::MMAL_PORT_T>,
     enabled: bool,
@@ -226,7 +292,7 @@ impl SeriousCamera {
     pub fn set_camera_num(&mut self, num: u8) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut param = Box::new(mem::zeroed());
-            let mut param3: *mut ffi::MMAL_PARAMETER_INT32_T = &mut *param;
+            let param3: *mut ffi::MMAL_PARAMETER_INT32_T = &mut *param;
             (*param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_NUM as u32;
             (*param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_INT32_T>() as u32;
             (*param3).value = num as i32;
@@ -326,11 +392,11 @@ impl SeriousCamera {
 
     pub fn set_camera_params(
         &mut self,
-        info: ffi::MMAL_PARAMETER_CAMERA_INFO_CAMERA_T,
-    ) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+        info: &CameraInfo,
+    ) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let mut param = Box::new(mem::zeroed());
-            let mut param3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
+            let param3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
             (*param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
             (*param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
 
@@ -354,24 +420,24 @@ impl SeriousCamera {
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     let mut param = Box::new(mem::zeroed());
-                    let mut newParam3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
-                    (*newParam3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
-                    (*newParam3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
+                    let new_param3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
+                    (*new_param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
+                    (*new_param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
 
-                    let status = ffi::mmal_port_parameter_get(self.camera.as_ref().control, &mut (*newParam3).hdr);
-                    println!("3 camera info {:?}\nparam: {:#?}\nnew param3: {:#?}\nparam3: {:#?}", status, (*newParam3).hdr, (*newParam3), (*param3));
+                    let status = ffi::mmal_port_parameter_get(self.camera.as_ref().control, &mut (*new_param3).hdr);
+                    println!("3 camera info {:?}\nparam: {:#?}\nnew param3: {:#?}\nparam3: {:#?}", status, (*new_param3).hdr, (*new_param3), (*param3));
 
 
-                    Ok(1)
+                    Ok(())
                 },
-                e => Err(status),
+                e => Err(e),
             }
         }
     }
 
     pub fn set_camera_format(
         &mut self,
-        info: ffi::MMAL_PARAMETER_CAMERA_INFO_CAMERA_T,
+        info: &CameraInfo,
     ) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
             let output = self.camera.as_ref().output;
@@ -497,12 +563,12 @@ impl SeriousCamera {
                     let status = ffi::mmal_port_format_commit(still_port_ptr);
                     match status {
                         MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
-                        e => Err(status),
+                        e => Err(e),
                     }
                 }
                 e => {
                     println!("Failed to select zero copy");
-                    Err(status)
+                    Err(e)
                 }
             }
         }
@@ -714,7 +780,6 @@ impl SeriousCamera {
     }
 }
 
-#[no_mangle]
 unsafe extern "C" fn camera_buffer_callback(
     port: *mut ffi::MMAL_PORT_T,
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
@@ -733,7 +798,7 @@ unsafe extern "C" fn camera_buffer_callback(
     // TODO: this is probably unsafe as Rust has no knowledge of this so it could have already been
     // dropped!
     let pdata_ptr: *mut SeriousCamera = (*port).userdata as *mut SeriousCamera;
-    let mut pdata: &mut SeriousCamera = &mut *pdata_ptr;
+    let pdata: &mut SeriousCamera = &mut *pdata_ptr;
 
     if !pdata_ptr.is_null() {
 
@@ -851,9 +916,8 @@ unsafe extern "C" fn camera_buffer_callback(
     println!("I'm done with c");
 }
 
-#[no_mangle]
 unsafe extern "C" fn camera_control_callback(
-    port: *mut ffi::MMAL_PORT_T,
+    _port: *mut ffi::MMAL_PORT_T,
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
 ) {
     // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L525
