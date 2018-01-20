@@ -9,11 +9,11 @@ use std::mem;
 use std::ptr;
 use std::ptr::Unique;
 use std::fs::File;
-use std::io::prelude::*;
 use std::slice;
 use std::string::String;
 use std::sync::{Once, ONCE_INIT};
 use std::{thread, time};
+use std::sync::mpsc;
 
 pub use error::CameraError;
 
@@ -155,6 +155,8 @@ pub struct SeriousCamera {
 
     file: File,
     file_open: bool,
+
+    buffer_callback: Box<Fn(&ffi::MMAL_BUFFER_HEADER_T) + 'static>,
 }
 
 impl SeriousCamera {
@@ -207,6 +209,7 @@ impl SeriousCamera {
                     preview: mem::zeroed(),
                     file: mem::uninitialized(),
                     file_open: false,
+                    buffer_callback: Box::new(|_| ()),
                     // zero_copy_cb:
                 }),
                 e => Err(e),
@@ -728,76 +731,82 @@ unsafe extern "C" fn camera_buffer_callback(
     let pdata: &mut SeriousCamera = &mut *pdata_ptr;
 
     if !pdata_ptr.is_null() {
-        if !pdata.file_open {
-            pdata.file_open = true;
-            pdata.file = File::create("image1.rgb").unwrap();
-            // pdata.file2 = File::create("image2.rgb").unwrap();
-        }
+        // if !pdata.file_open {
+        //     pdata.file_open = true;
+        //     pdata.file = File::create("image1.rgb").unwrap();
+        //     // pdata.file2 = File::create("image2.rgb").unwrap();
+        // }
 
         if bytes_to_write > 0
         // && pdata->file_handle
         {
             ffi::mmal_buffer_header_mem_lock(buffer);
 
-            let s = slice::from_raw_parts((*buffer).data, bytes_to_write as usize);
-
-            pdata
-                .file
-                .write_all(&s)
-                .expect("Saving raw buffer image failed");
-            // bytes_written = fwrite(buffer.data, 1, bytes_to_write, pdata->file_handle);
-
-            // let img = image::ImageBuffer::from_raw(2592, 1944, slice::from_raw_parts((*buffer).data, bytes_to_write as usize)).expect("Opening image failed");
-            // let mut out = File::create("image.jpg").unwrap();
-            // img.save("image.jpg").expect("Saving image failed");
-
-            // OpenCV try #1:
-            // let mat = Mat::imdecode(&s, cv::imgcodecs::ImreadModes::ImreadColor);
-            // mat.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
-            //
-            // let s2 = mat.imencode("png", vec!()).expect("Could not create PNG");
-
-            // OpenCV try #2:
-            // TODO: fix this
-            // let size = (3280 * 2463 * 3) as usize;
-            // println!("calculated size: {}, got size: {}", size, bytes_to_write);
-            // let mut vec = Vec::with_capacity(bytes_to_write as usize);
-            //
-            // vec.set_len(bytes_to_write as usize);
-            // std::ptr::copy((*buffer).data, vec.as_mut_ptr(), bytes_to_write as usize);
-            //
-            // // It would be nice if something like this existed in the rust bindings:
-            // // https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#a51615ebf17a64c968df0bf49b4de6a3a
-            // let new_image = Mat::from_buffer(3280, 2463, CvType::Cv8UC3 as i32, &vec);
-            // // new_image.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
-            // new_image.cvt_color(cv::imgproc::ColorConversionCodes::YUV2BGR_IYUV);
-            //
-            // // There's also imwrite()
-            // let s2 = new_image.imencode(".png", vec!()).expect("Could not create PNG");
-            //
-            // pdata.file2
-            //      .write_all(&s2)
-            //      .expect("Saving png raw buffer image failed");
-            //
-            // mem::forget(vec);
-
-            // THIS WORKS:
-            // let size = (3280 * 2464 * 3) as usize;
-            // let mut s2 = Vec::with_capacity(bytes_to_write as usize);
-            // let mem_width = ffi::vcos_align_up(3280, 32) as usize;
-            // let data_length = 3280 * 3;
-            //
-            // for i in 0..2464 {
-            //     // s2[i*3280*3..(i+1)*3280*3].copy_from_slice(&s[i*mem_width*3..(i+1)*mem_width*3]);
-            //     let row_offset = i*mem_width*3;
-            //     s2.extend(&s[row_offset..row_offset+data_length]);
-            // }
-            //
-            // pdata.file2
-            //      .write_all(&s2)
-            //      .expect("Saving modified raw buffer image failed");
+            (pdata.buffer_callback)(&mut *buffer);
 
             ffi::mmal_buffer_header_mem_unlock(buffer);
+
+        //     ffi::mmal_buffer_header_mem_lock(buffer);
+        //
+        //     let s = slice::from_raw_parts((*buffer).data, bytes_to_write as usize);
+        //
+        //     pdata
+        //         .file
+        //         .write_all(&s)
+        //         .expect("Saving raw buffer image failed");
+        //     // bytes_written = fwrite(buffer.data, 1, bytes_to_write, pdata->file_handle);
+        //
+        //     // let img = image::ImageBuffer::from_raw(2592, 1944, slice::from_raw_parts((*buffer).data, bytes_to_write as usize)).expect("Opening image failed");
+        //     // let mut out = File::create("image.jpg").unwrap();
+        //     // img.save("image.jpg").expect("Saving image failed");
+        //
+        //     // OpenCV try #1:
+        //     // let mat = Mat::imdecode(&s, cv::imgcodecs::ImreadModes::ImreadColor);
+        //     // mat.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
+        //     //
+        //     // let s2 = mat.imencode("png", vec!()).expect("Could not create PNG");
+        //
+        //     // OpenCV try #2:
+        //     // TODO: fix this
+        //     // let size = (3280 * 2463 * 3) as usize;
+        //     // println!("calculated size: {}, got size: {}", size, bytes_to_write);
+        //     // let mut vec = Vec::with_capacity(bytes_to_write as usize);
+        //     //
+        //     // vec.set_len(bytes_to_write as usize);
+        //     // std::ptr::copy((*buffer).data, vec.as_mut_ptr(), bytes_to_write as usize);
+        //     //
+        //     // // It would be nice if something like this existed in the rust bindings:
+        //     // // https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#a51615ebf17a64c968df0bf49b4de6a3a
+        //     // let new_image = Mat::from_buffer(3280, 2463, CvType::Cv8UC3 as i32, &vec);
+        //     // // new_image.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
+        //     // new_image.cvt_color(cv::imgproc::ColorConversionCodes::YUV2BGR_IYUV);
+        //     //
+        //     // // There's also imwrite()
+        //     // let s2 = new_image.imencode(".png", vec!()).expect("Could not create PNG");
+        //     //
+        //     // pdata.file2
+        //     //      .write_all(&s2)
+        //     //      .expect("Saving png raw buffer image failed");
+        //     //
+        //     // mem::forget(vec);
+        //
+        //     // THIS WORKS:
+        //     // let size = (3280 * 2464 * 3) as usize;
+        //     // let mut s2 = Vec::with_capacity(bytes_to_write as usize);
+        //     // let mem_width = ffi::vcos_align_up(3280, 32) as usize;
+        //     // let data_length = 3280 * 3;
+        //     //
+        //     // for i in 0..2464 {
+        //     //     // s2[i*3280*3..(i+1)*3280*3].copy_from_slice(&s[i*mem_width*3..(i+1)*mem_width*3]);
+        //     //     let row_offset = i*mem_width*3;
+        //     //     s2.extend(&s[row_offset..row_offset+data_length]);
+        //     // }
+        //     //
+        //     // pdata.file2
+        //     //      .write_all(&s2)
+        //     //      .expect("Saving modified raw buffer image failed");
+        //
+        //     ffi::mmal_buffer_header_mem_unlock(buffer);
         }
 
         // Check end of frame or error
@@ -910,5 +919,83 @@ impl Drop for SeriousCamera {
                 println!("encoder destroyed");
             }
         }
+    }
+}
+
+
+pub struct SimpleCamera {
+    pub info: CameraInfo,
+    serious: SeriousCamera,
+}
+
+impl SimpleCamera {
+    fn activate(&mut self) -> () {
+        let camera = &mut self.serious;
+
+        camera.set_camera_num(0).unwrap();
+        println!("camera number set");
+        camera.create_encoder().unwrap();
+        println!("encoder created");
+        camera.enable_control_port().unwrap();
+        println!("camera control port enabled");
+        camera.set_camera_params(&self.info).unwrap();
+        println!("camera params set");
+
+        /*
+        // Ensure there are enough buffers to avoid dropping frames
+        if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
+        video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
+        */
+        camera.set_camera_format(&self.info).unwrap();
+        println!("set camera format");
+        camera.enable().unwrap();
+        println!("camera enabled");
+        camera.create_pool().unwrap();
+        println!("pool created");
+
+        camera.create_preview().unwrap();
+        println!("preview created");
+        camera.enable_preview().unwrap();
+        println!("preview enabled");
+
+        // camera.connect().unwrap();
+        camera.connect_ports().unwrap();
+        println!("camera ports connected");
+
+        camera.enable_still_port().unwrap();
+        println!("camera still port enabled");
+    }
+
+    pub fn take_one(&mut self) -> Result<Vec<u8>, mpsc::RecvError> {
+        let (sender, receiver) = mpsc::sync_channel(0);
+
+        let b = Box::new(|buf: &ffi::MMAL_BUFFER_HEADER_T| {
+            let size = (self.info.max_width * self.info.max_height * 3) as usize;
+            let s = unsafe {
+                slice::from_raw_parts((*buf).data, (*buf).length as usize)
+            };
+            let mut s2 = Vec::with_capacity(size as usize);
+            let mem_width = ffi::vcos_align_up(self.info.max_width, 32) as usize;
+            let data_length = (self.info.max_width as usize) * 3;
+
+            for i in 0..(self.info.max_height as usize) {
+                let row_offset = i*mem_width*3;
+                s2.extend(&s[row_offset..row_offset+data_length]);
+            }
+
+            sender.send(s2).unwrap();
+        });
+
+        self.serious.buffer_callback = b;
+
+        println!("taking photo");
+        self.serious.take();
+
+        let r = receiver.recv();
+
+        // TODO: change this to Option(Box::new(Fn))
+        self.serious.buffer_callback = Box::new(|_| ());
+
+        r
     }
 }

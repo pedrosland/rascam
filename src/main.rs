@@ -15,7 +15,7 @@ fn main() {
     }
     println!("{}", info);
 
-    if false {
+    if true {
         simple(&info.cameras[0]);
     } else {
         serious(&info.cameras[0]);
@@ -23,7 +23,14 @@ fn main() {
 }
 
 fn simple(info: &CameraInfo) {
-    // let mut camera = SimpleCamera::new().unwrap();
+    let mut camera = SimpleCamera::new().unwrap();
+    camera.activate();
+
+    let sleep_duration = time::Duration::from_millis(2000);
+    thread::sleep(sleep_duration);
+
+    let b = camera.take_one();
+    File::create("image1.rgb").unwrap().write_all(&b);
 }
 
 fn serious(info: &CameraInfo) {
