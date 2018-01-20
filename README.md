@@ -123,3 +123,5 @@ convert -size 96x96 -depth 8 -colorspace RGB rgb:test.rgb out.png
 
 Note that `mmal_port_parameter_get` and `mmal_port_parameter_set` use memcpy into our struct so `params` should be owned by rust.
 https://github.com/raspberrypi/userland/blob/a1b89e91f393c7134b4cdc36431f863bb3333163/interface/mmal/vc/mmal_vc_api.c#L1222
+
+TODO: why does `cargo test` require a `build.rs` in the top level package when `cargo build` does not?

@@ -6,7 +6,8 @@ authors = ["Pedro Sland <pedrosland@gmail.com>"]
 [dependencies]
 mmal-sys = { path = "mmal-sys" }
 libc = "0.2"
-bytes = "0.4.4"
-image = "0.14.0"
-cv = { git = "https://github.com/nebgnahz/cv-rs.git" }
 futures = "0.1"
+
+[[bin]]
+name = "test"
+path = "src/main.rs"
