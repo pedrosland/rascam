@@ -13,7 +13,7 @@ use std::slice;
 use std::string::String;
 use std::sync::{Once, ONCE_INIT};
 use std::{thread, time};
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, Barrier};
 
 pub use error::CameraError;
 
@@ -50,6 +50,7 @@ impl fmt::Display for Info {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CameraInfo {
     pub port_id: u32,
     pub max_width: u32,
@@ -156,7 +157,7 @@ pub struct SeriousCamera {
     file: File,
     file_open: bool,
 
-    buffer_callback: Box<Fn(&ffi::MMAL_BUFFER_HEADER_T) + 'static>,
+    buffer_callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>,
 }
 
 impl SeriousCamera {
@@ -742,7 +743,7 @@ unsafe extern "C" fn camera_buffer_callback(
         {
             ffi::mmal_buffer_header_mem_lock(buffer);
 
-            (pdata.buffer_callback)(&mut *buffer);
+            (pdata.buffer_callback)(Some(&mut *buffer));
 
             ffi::mmal_buffer_header_mem_unlock(buffer);
 
@@ -816,6 +817,7 @@ unsafe extern "C" fn camera_buffer_callback(
         {
             // complete = true;
             println!("complete");
+            (pdata.buffer_callback)(None);
             // drop(pdata.file);
         }
     } else {
@@ -924,12 +926,21 @@ impl Drop for SeriousCamera {
 
 
 pub struct SimpleCamera {
-    pub info: CameraInfo,
+    info: CameraInfo,
     serious: SeriousCamera,
 }
 
 impl SimpleCamera {
-    fn activate(&mut self) -> () {
+    pub fn new(info: CameraInfo) -> Result<SimpleCamera, u32> {
+        let sc = SeriousCamera::new()?;
+
+        Ok(SimpleCamera{
+            info: info,
+            serious: sc,
+        })
+    }
+
+    pub fn activate(&mut self) -> () {
         let camera = &mut self.serious;
 
         camera.set_camera_num(0).unwrap();
@@ -966,36 +977,41 @@ impl SimpleCamera {
         println!("camera still port enabled");
     }
 
-    pub fn take_one(&mut self) -> Result<Vec<u8>, mpsc::RecvError> {
-        let (sender, receiver) = mpsc::sync_channel(0);
+    pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
+        let w = self.info.max_width;
+        let h = self.info.max_height;
 
-        let b = Box::new(|buf: &ffi::MMAL_BUFFER_HEADER_T| {
-            let size = (self.info.max_width * self.info.max_height * 3) as usize;
+        let size = (w * h * 3) as usize;
+        let s_arc = Arc::new(Vec::with_capacity(size as usize));
+        let callback_s_arc = s_arc.clone();
+        let barrier = Arc::new(Barrier::new(2));
+        let b2 = barrier.clone();
+
+        self.serious.buffer_callback = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
+            if o.is_none() {
+                b2.wait();
+                return;
+            }
+
+            let buf = o.unwrap();
+
             let s = unsafe {
                 slice::from_raw_parts((*buf).data, (*buf).length as usize)
             };
-            let mut s2 = Vec::with_capacity(size as usize);
-            let mem_width = ffi::vcos_align_up(self.info.max_width, 32) as usize;
-            let data_length = (self.info.max_width as usize) * 3;
+            let mem_width = ffi::vcos_align_up(w, 32) as usize;
+            let data_length = (w as usize) * 3;
+            let s2 = *callback_s_arc;
 
-            for i in 0..(self.info.max_height as usize) {
+            for i in 0..(h as usize) {
                 let row_offset = i*mem_width*3;
                 s2.extend(&s[row_offset..row_offset+data_length]);
             }
-
-            sender.send(s2).unwrap();
         });
 
-        self.serious.buffer_callback = b;
-
         println!("taking photo");
-        self.serious.take();
+        self.serious.take().map_err(|e| format!("take error: {}", e))?;
 
-        let r = receiver.recv();
-
-        // TODO: change this to Option(Box::new(Fn))
-        self.serious.buffer_callback = Box::new(|_| ());
-
-        r
+        barrier.wait();
+        Ok(*s_arc)
     }
 }

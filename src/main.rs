@@ -2,6 +2,8 @@
 // use futures::Future;
 extern crate cam;
 
+use std::fs::File;
+use std::io::Write;
 use std::{thread, time};
 use cam::*;
 
@@ -23,13 +25,13 @@ fn main() {
 }
 
 fn simple(info: &CameraInfo) {
-    let mut camera = SimpleCamera::new().unwrap();
+    let mut camera = SimpleCamera::new(info.clone()).unwrap();
     camera.activate();
 
     let sleep_duration = time::Duration::from_millis(2000);
     thread::sleep(sleep_duration);
 
-    let b = camera.take_one();
+    let b = camera.take_one().unwrap();
     File::create("image1.rgb").unwrap().write_all(&b);
 }
 
