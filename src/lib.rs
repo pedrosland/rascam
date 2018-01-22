@@ -13,7 +13,7 @@ use std::slice;
 use std::string::String;
 use std::sync::{Once, ONCE_INIT};
 use std::{thread, time};
-use std::sync::{Arc, Mutex, Barrier};
+use std::sync::{Arc, Mutex, Barrier, mpsc};
 
 pub use error::CameraError;
 
@@ -626,7 +626,7 @@ impl SeriousCamera {
     }
 
     // TODO: callback when complete? future? stream?
-    pub fn take(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
+    pub fn take(&mut self, callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         let sleep_duration = time::Duration::from_millis(5000);
         thread::sleep(sleep_duration);
 
@@ -665,6 +665,8 @@ impl SeriousCamera {
 
                     match status {
                         MMAL_STATUS_T::MMAL_SUCCESS => {
+                            self.buffer_callback = callback;
+
                             status = ffi::mmal_port_parameter_set_boolean(
                                 still_port_ptr,
                                 ffi::MMAL_PARAMETER_CAPTURE as u32,
@@ -691,6 +693,7 @@ impl SeriousCamera {
                                 }
                                 e => {
                                     println!("Could not set camera capture boolean");
+                                    self.buffer_callback = Box::new(|_| ());
                                     Err(e)
                                 }
                             }
@@ -818,6 +821,7 @@ unsafe extern "C" fn camera_buffer_callback(
             // complete = true;
             println!("complete");
             (pdata.buffer_callback)(None);
+            pdata.buffer_callback = Box::new(|_| ());
             // drop(pdata.file);
         }
     } else {
@@ -978,18 +982,17 @@ impl SimpleCamera {
     }
 
     pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
+        println!("taking photo");
+
+        let (sender, receiver) = mpsc::sync_channel(1);
+
         let w = self.info.max_width;
         let h = self.info.max_height;
-
         let size = (w * h * 3) as usize;
-        let s_arc = Arc::new(Vec::with_capacity(size as usize));
-        let callback_s_arc = s_arc.clone();
-        let barrier = Arc::new(Barrier::new(2));
-        let b2 = barrier.clone();
 
-        self.serious.buffer_callback = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
+        let cb = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
             if o.is_none() {
-                b2.wait();
+                sender.send(None).unwrap();
                 return;
             }
 
@@ -1000,18 +1003,29 @@ impl SimpleCamera {
             };
             let mem_width = ffi::vcos_align_up(w, 32) as usize;
             let data_length = (w as usize) * 3;
-            let s2 = *callback_s_arc;
+            let mut s2: Box<Vec<u8>> = Box::new(Vec::with_capacity(size as usize));
 
             for i in 0..(h as usize) {
                 let row_offset = i*mem_width*3;
                 s2.extend(&s[row_offset..row_offset+data_length]);
             }
+
+            sender.send(Some(s2)).unwrap();
         });
 
-        println!("taking photo");
-        self.serious.take().map_err(|e| format!("take error: {}", e))?;
+        self.serious.take(cb).map_err(|e| format!("take error: {}", e))?;
 
-        barrier.wait();
-        Ok(*s_arc)
+        let b = receiver.recv().map_err(|_| "Could not receive buffer")?;
+
+        if b.is_none() {
+            Err("No buffer present".into())
+        } else {
+            let complete = receiver.recv().map_err(|_| "Could not receive complete message")?;
+            if complete.is_none() {
+                Ok(*(b.unwrap()))
+            } else {
+                Err("Got buffer buffer expected complete".into())
+            }
+        }
     }
 }

@@ -32,7 +32,7 @@ fn simple(info: &CameraInfo) {
     thread::sleep(sleep_duration);
 
     let b = camera.take_one().unwrap();
-    File::create("image1.rgb").unwrap().write_all(&b);
+    File::create("image1.rgb").unwrap().write_all(&b).unwrap();
 }
 
 fn serious(info: &CameraInfo) {
@@ -71,7 +71,7 @@ fn serious(info: &CameraInfo) {
     camera.enable_still_port().unwrap();
     println!("camera still port enabled");
 
-    camera.take().unwrap();
+    // camera.take().unwrap();
     println!("taking photo");
 
     let sleep_duration = time::Duration::from_millis(2000);
