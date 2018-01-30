@@ -68,7 +68,7 @@ fn serious(info: &CameraInfo) {
     camera.connect_ports().unwrap();
     println!("camera ports connected");
 
-    camera.enable_still_port().unwrap();
+    // camera.enable_still_port(cb).unwrap();
     println!("camera still port enabled");
 
     // camera.take().unwrap();

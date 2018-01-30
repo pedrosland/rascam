@@ -6,14 +6,13 @@ use ffi::MMAL_STATUS_T;
 use std::fmt;
 use std::os::raw::c_char;
 use std::mem;
-use std::ptr;
 use std::ptr::Unique;
 use std::fs::File;
 use std::slice;
 use std::string::String;
 use std::sync::{Once, ONCE_INIT};
 use std::{thread, time};
-use std::sync::{Arc, Mutex, Barrier, mpsc};
+use std::sync::mpsc;
 
 pub use error::CameraError;
 
@@ -89,8 +88,8 @@ pub fn info() -> Result<Info, CameraError> {
     unsafe {
         let info_type: *const c_char =
             ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const c_char;
-        let mut component: *mut ffi::MMAL_COMPONENT_T = ptr::null_mut();
-        let status = ffi::mmal_component_create(info_type, &mut component as *mut _);
+        let mut component: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized(); // or ptr::null_mut()
+        let status = ffi::mmal_component_create(info_type, &mut component);
 
         match status {
             MMAL_STATUS_T::MMAL_SUCCESS => {
@@ -134,6 +133,11 @@ pub fn info() -> Result<Info, CameraError> {
     }
 }
 
+struct Userdata {
+    pool: Unique<ffi::MMAL_POOL_T>,
+    callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
+}
+
 #[repr(C)]
 pub struct SeriousCamera {
     camera: Unique<ffi::MMAL_COMPONENT_T>,
@@ -156,8 +160,8 @@ pub struct SeriousCamera {
 
     file: File,
     file_open: bool,
-
-    buffer_callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>,
+    // FnOnce
+    // buffer_callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>,
 }
 
 impl SeriousCamera {
@@ -186,11 +190,10 @@ impl SeriousCamera {
 */
 
         unsafe {
-            let mut camera = Box::new(mem::zeroed());
-            let component: *const ::std::os::raw::c_char =
-                ffi::MMAL_COMPONENT_DEFAULT_CAMERA.as_ptr() as *const ::std::os::raw::c_char;
-            let mut camera_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *camera;
-            let status = ffi::mmal_component_create(component, &mut camera_ptr as *mut _);
+            let mut camera_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
+            let component: *const c_char =
+                ffi::MMAL_COMPONENT_DEFAULT_CAMERA.as_ptr() as *const c_char;
+            let status = ffi::mmal_component_create(component, &mut camera_ptr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(SeriousCamera {
                     camera: Unique::new(&mut *camera_ptr).unwrap(),
@@ -210,7 +213,7 @@ impl SeriousCamera {
                     preview: mem::zeroed(),
                     file: mem::uninitialized(),
                     file_open: false,
-                    buffer_callback: Box::new(|_| ()),
+                    // buffer_callback: Box::new(|_| ()),
                     // zero_copy_cb:
                 }),
                 e => Err(e),
@@ -299,11 +302,18 @@ impl SeriousCamera {
         }
     }
 
-    pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn enable_still_port(
+        &mut self,
+        callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
+    ) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
         unsafe {
-            let self_ptr = self as *mut SeriousCamera;
+            let data = Box::new(Userdata {
+                pool: self.pool,
+                callback: callback,
+            });
+            let data_ptr = Box::into_raw(data);
             (**self.camera.as_ref().output.offset(2)).userdata =
-                self_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
+                data_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
 
             let status = ffi::mmal_port_enable(
                 *self.camera.as_ref().output.offset(2),
@@ -626,7 +636,7 @@ impl SeriousCamera {
     }
 
     // TODO: callback when complete? future? stream?
-    pub fn take(&mut self, callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>) -> Result<(), ffi::MMAL_STATUS_T::Type> {
+    pub fn take(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
         let sleep_duration = time::Duration::from_millis(5000);
         thread::sleep(sleep_duration);
 
@@ -665,8 +675,6 @@ impl SeriousCamera {
 
                     match status {
                         MMAL_STATUS_T::MMAL_SUCCESS => {
-                            self.buffer_callback = callback;
-
                             status = ffi::mmal_port_parameter_set_boolean(
                                 still_port_ptr,
                                 ffi::MMAL_PARAMETER_CAPTURE as u32,
@@ -693,7 +701,6 @@ impl SeriousCamera {
                                 }
                                 e => {
                                     println!("Could not set camera capture boolean");
-                                    self.buffer_callback = Box::new(|_| ());
                                     Err(e)
                                 }
                             }
@@ -726,13 +733,15 @@ unsafe extern "C" fn camera_buffer_callback(
 
     // let mut bytes_written: i32 = 0;
     let bytes_to_write = (*buffer).length;
+    let mut complete = false;
 
     println!("I'm called from C. buffer length: {}", bytes_to_write);
 
     // TODO: this is probably unsafe as Rust has no knowledge of this so it could have already been
     // dropped!
-    let pdata_ptr: *mut SeriousCamera = (*port).userdata as *mut SeriousCamera;
-    let pdata: &mut SeriousCamera = &mut *pdata_ptr;
+    let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
+    // let cb = Box::from_raw((*port).userdata);
+    let pdata: &mut Userdata = &mut *pdata_ptr;
 
     if !pdata_ptr.is_null() {
         // if !pdata.file_open {
@@ -746,71 +755,9 @@ unsafe extern "C" fn camera_buffer_callback(
         {
             ffi::mmal_buffer_header_mem_lock(buffer);
 
-            (pdata.buffer_callback)(Some(&mut *buffer));
+            (pdata.callback)(Some(&mut *buffer));
 
             ffi::mmal_buffer_header_mem_unlock(buffer);
-
-        //     ffi::mmal_buffer_header_mem_lock(buffer);
-        //
-        //     let s = slice::from_raw_parts((*buffer).data, bytes_to_write as usize);
-        //
-        //     pdata
-        //         .file
-        //         .write_all(&s)
-        //         .expect("Saving raw buffer image failed");
-        //     // bytes_written = fwrite(buffer.data, 1, bytes_to_write, pdata->file_handle);
-        //
-        //     // let img = image::ImageBuffer::from_raw(2592, 1944, slice::from_raw_parts((*buffer).data, bytes_to_write as usize)).expect("Opening image failed");
-        //     // let mut out = File::create("image.jpg").unwrap();
-        //     // img.save("image.jpg").expect("Saving image failed");
-        //
-        //     // OpenCV try #1:
-        //     // let mat = Mat::imdecode(&s, cv::imgcodecs::ImreadModes::ImreadColor);
-        //     // mat.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
-        //     //
-        //     // let s2 = mat.imencode("png", vec!()).expect("Could not create PNG");
-        //
-        //     // OpenCV try #2:
-        //     // TODO: fix this
-        //     // let size = (3280 * 2463 * 3) as usize;
-        //     // println!("calculated size: {}, got size: {}", size, bytes_to_write);
-        //     // let mut vec = Vec::with_capacity(bytes_to_write as usize);
-        //     //
-        //     // vec.set_len(bytes_to_write as usize);
-        //     // std::ptr::copy((*buffer).data, vec.as_mut_ptr(), bytes_to_write as usize);
-        //     //
-        //     // // It would be nice if something like this existed in the rust bindings:
-        //     // // https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#a51615ebf17a64c968df0bf49b4de6a3a
-        //     // let new_image = Mat::from_buffer(3280, 2463, CvType::Cv8UC3 as i32, &vec);
-        //     // // new_image.cvt_color(cv::imgproc::ColorConversionCodes::BGR2RGB);
-        //     // new_image.cvt_color(cv::imgproc::ColorConversionCodes::YUV2BGR_IYUV);
-        //     //
-        //     // // There's also imwrite()
-        //     // let s2 = new_image.imencode(".png", vec!()).expect("Could not create PNG");
-        //     //
-        //     // pdata.file2
-        //     //      .write_all(&s2)
-        //     //      .expect("Saving png raw buffer image failed");
-        //     //
-        //     // mem::forget(vec);
-        //
-        //     // THIS WORKS:
-        //     // let size = (3280 * 2464 * 3) as usize;
-        //     // let mut s2 = Vec::with_capacity(bytes_to_write as usize);
-        //     // let mem_width = ffi::vcos_align_up(3280, 32) as usize;
-        //     // let data_length = 3280 * 3;
-        //     //
-        //     // for i in 0..2464 {
-        //     //     // s2[i*3280*3..(i+1)*3280*3].copy_from_slice(&s[i*mem_width*3..(i+1)*mem_width*3]);
-        //     //     let row_offset = i*mem_width*3;
-        //     //     s2.extend(&s[row_offset..row_offset+data_length]);
-        //     // }
-        //     //
-        //     // pdata.file2
-        //     //      .write_all(&s2)
-        //     //      .expect("Saving modified raw buffer image failed");
-        //
-        //     ffi::mmal_buffer_header_mem_unlock(buffer);
         }
 
         // Check end of frame or error
@@ -818,11 +765,7 @@ unsafe extern "C" fn camera_buffer_callback(
             & (ffi::MMAL_BUFFER_HEADER_FLAG_FRAME_END
                 | ffi::MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED)) > 0
         {
-            // complete = true;
-            println!("complete");
-            (pdata.buffer_callback)(None);
-            pdata.buffer_callback = Box::new(|_| ());
-            // drop(pdata.file);
+            complete = true;
         }
     } else {
         println!("Received a camera still buffer callback with no state");
@@ -832,7 +775,7 @@ unsafe extern "C" fn camera_buffer_callback(
     ffi::mmal_buffer_header_release(buffer);
 
     // and send one back to the port (if still open)
-    if (*port).is_enabled > 0 {
+    if (*port).is_enabled > 0 && !pdata_ptr.is_null() {
         let mut status: ffi::MMAL_STATUS_T::Type = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
         let new_buffer: *mut ffi::MMAL_BUFFER_HEADER_T =
             ffi::mmal_queue_get(pdata.pool.as_ref().queue);
@@ -847,10 +790,12 @@ unsafe extern "C" fn camera_buffer_callback(
         }
     }
 
-    //    if (complete)
-    //    {
-    //       vcos_semaphore_post(&(pData->complete_semaphore));
-    // }
+    if complete {
+        println!("complete");
+        (pdata.callback)(None);
+        Box::from_raw(pdata_ptr); // Allow rust to free this memory
+    }
+
     println!("I'm done with c");
 }
 
@@ -928,7 +873,6 @@ impl Drop for SeriousCamera {
     }
 }
 
-
 pub struct SimpleCamera {
     info: CameraInfo,
     serious: SeriousCamera,
@@ -938,12 +882,12 @@ impl SimpleCamera {
     pub fn new(info: CameraInfo) -> Result<SimpleCamera, u32> {
         let sc = SeriousCamera::new()?;
 
-        Ok(SimpleCamera{
+        Ok(SimpleCamera {
             info: info,
             serious: sc,
         })
     }
-
+    // TODO: return type Result<(), CameraError>
     pub fn activate(&mut self) -> () {
         let camera = &mut self.serious;
 
@@ -976,14 +920,9 @@ impl SimpleCamera {
         // camera.connect().unwrap();
         camera.connect_ports().unwrap();
         println!("camera ports connected");
-
-        camera.enable_still_port().unwrap();
-        println!("camera still port enabled");
     }
 
     pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
-        println!("taking photo");
-
         let (sender, receiver) = mpsc::sync_channel(1);
 
         let w = self.info.max_width;
@@ -998,31 +937,38 @@ impl SimpleCamera {
 
             let buf = o.unwrap();
 
-            let s = unsafe {
-                slice::from_raw_parts((*buf).data, (*buf).length as usize)
-            };
+            let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
             let mem_width = ffi::vcos_align_up(w, 32) as usize;
             let data_length = (w as usize) * 3;
-            let mut s2: Box<Vec<u8>> = Box::new(Vec::with_capacity(size as usize));
+            let mut s2: Vec<u8> = Vec::with_capacity(size as usize);
 
             for i in 0..(h as usize) {
-                let row_offset = i*mem_width*3;
-                s2.extend(&s[row_offset..row_offset+data_length]);
+                let row_offset = i * mem_width * 3;
+                s2.extend(&s[row_offset..row_offset + data_length]);
             }
 
             sender.send(Some(s2)).unwrap();
         });
 
-        self.serious.take(cb).map_err(|e| format!("take error: {}", e))?;
+        self.serious.enable_still_port(cb).unwrap();
+        println!("camera still port enabled");
+
+        println!("taking photo");
+
+        self.serious
+            .take()
+            .map_err(|e| format!("take error: {}", e))?;
 
         let b = receiver.recv().map_err(|_| "Could not receive buffer")?;
 
         if b.is_none() {
             Err("No buffer present".into())
         } else {
-            let complete = receiver.recv().map_err(|_| "Could not receive complete message")?;
+            let complete = receiver
+                .recv()
+                .map_err(|_| "Could not receive complete message")?;
             if complete.is_none() {
-                Ok(*(b.unwrap()))
+                Ok(b.unwrap())
             } else {
                 Err("Got buffer buffer expected complete".into())
             }
