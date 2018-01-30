@@ -26,7 +26,7 @@ fn main() {
 
 fn simple(info: &CameraInfo) {
     let mut camera = SimpleCamera::new(info.clone()).unwrap();
-    camera.activate();
+    camera.activate().unwrap();
 
     let sleep_duration = time::Duration::from_millis(2000);
     thread::sleep(sleep_duration);

@@ -221,20 +221,17 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_num(&mut self, num: u8) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn set_camera_num(&mut self, num: u8) -> Result<(), CameraError> {
         unsafe {
-            let mut param = Box::new(mem::zeroed());
-            let param3: *mut ffi::MMAL_PARAMETER_INT32_T = &mut *param;
-            (*param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_NUM as u32;
-            (*param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_INT32_T>() as u32;
-            (*param3).value = num as i32;
+            let mut param: ffi::MMAL_PARAMETER_INT32_T = mem::uninitialized();
+            param.hdr.id = ffi::MMAL_PARAMETER_CAMERA_NUM as u32;
+            param.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_INT32_T>() as u32;
+            param.value = num as i32;
 
-            let status =
-                ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut (*param3).hdr);
-            println!("status {:?}", status);
+            let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut param.hdr);
             match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => Ok(num),
-                e => Err(e),
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
+                s => Err(CameraError::with_status("Unable to set camera number", s)),
             }
         }
     }
@@ -887,18 +884,14 @@ impl SimpleCamera {
             serious: sc,
         })
     }
-    // TODO: return type Result<(), CameraError>
-    pub fn activate(&mut self) -> () {
+
+    pub fn activate(&mut self) -> Result<(), CameraError> {
         let camera = &mut self.serious;
 
-        camera.set_camera_num(0).unwrap();
-        println!("camera number set");
+        camera.set_camera_num(0)?;
         camera.create_encoder().unwrap();
-        println!("encoder created");
         camera.enable_control_port().unwrap();
-        println!("camera control port enabled");
         camera.set_camera_params(&self.info).unwrap();
-        println!("camera params set");
 
         /*
         // Ensure there are enough buffers to avoid dropping frames
@@ -920,6 +913,8 @@ impl SimpleCamera {
         // camera.connect().unwrap();
         camera.connect_ports().unwrap();
         println!("camera ports connected");
+
+        Ok(())
     }
 
     pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
