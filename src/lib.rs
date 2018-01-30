@@ -236,21 +236,19 @@ impl SeriousCamera {
         }
     }
 
-    pub fn create_encoder(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn create_encoder(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let mut encoder = Box::new(mem::zeroed());
-            let component: *const ::std::os::raw::c_char =
-                ffi::MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER.as_ptr() as *const ::std::os::raw::c_char;
-            let mut encoder_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *encoder;
-            let status = ffi::mmal_component_create(component, &mut encoder_ptr as *mut _);
-            println!("status {:?}", status);
+            let mut encoder_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
+            let component: *const c_char =
+                ffi::MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER.as_ptr() as *const c_char;
+            let status = ffi::mmal_component_create(component, &mut encoder_ptr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.encoder = Unique::new(&mut *encoder_ptr).unwrap();
                     self.encoder_created = true;
-                    Ok(1)
+                    Ok(())
                 }
-                e => Err(e),
+                s => Err(CameraError::with_status("Unable to create encoder", s)),
             }
         }
     }
@@ -280,21 +278,16 @@ impl SeriousCamera {
         }
     }
 
-    pub fn enable_control_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn enable_control_port(&mut self) -> Result<(), CameraError> {
         unsafe {
-            //    let mut encoder = Box::new(self.camera.as_ref());
-            //    let mut component: *const ::std::os::raw::c_char = ffi::MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER.as_ptr() as *const ::std::os::raw::c_char;
-            //    let mut encoder_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *encoder;
-            //    let status = ffi::mmal_component_create(component, &mut encoder_ptr as *mut _);
-
             let status =
                 ffi::mmal_port_enable(self.camera.as_ref().control, Some(camera_control_callback));
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.port_enabled = true;
-                    Ok(1)
+                    Ok(())
                 }
-                e => Err(e),
+                s => Err(CameraError::with_status("Unable to enable control port", s)),
             }
         }
     }
@@ -326,53 +319,28 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_params(&mut self, info: &CameraInfo) -> Result<(), ffi::MMAL_STATUS_T::Type> {
+    pub fn set_camera_params(&mut self, info: &CameraInfo) -> Result<(), CameraError> {
         unsafe {
-            let mut param = Box::new(mem::zeroed());
-            let param3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
-            (*param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
-            (*param3).hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
+            let mut cfg: ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = mem::uninitialized();
+            cfg.hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
+            cfg.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
 
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L706
-            (*param3).max_stills_w = info.max_width;
-            (*param3).max_stills_h = info.max_height;
-            (*param3).stills_yuv422 = 0;
-            (*param3).one_shot_stills = 1;
-            (*param3).max_preview_video_w = info.max_width;
-            (*param3).max_preview_video_h = info.max_height;
-            (*param3).num_preview_video_frames = 1;
-            (*param3).stills_capture_circular_buffer_height = 0;
-            (*param3).fast_preview_resume = 0;
-            (*param3).use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
+            cfg.max_stills_w = info.max_width;
+            cfg.max_stills_h = info.max_height;
+            cfg.stills_yuv422 = 0;
+            cfg.one_shot_stills = 1;
+            cfg.max_preview_video_w = info.max_width;
+            cfg.max_preview_video_h = info.max_height;
+            cfg.num_preview_video_frames = 1;
+            cfg.stills_capture_circular_buffer_height = 0;
+            cfg.fast_preview_resume = 0;
+            cfg.use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
 
-            mem::forget((*param3).max_stills_w);
-            mem::forget(param);
-            mem::forget(param3);
-            let status =
-                ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut (*param3).hdr);
+            let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut cfg.hdr);
             match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => {
-                    let mut param = Box::new(mem::zeroed());
-                    let new_param3: *mut ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = &mut *param;
-                    (*new_param3).hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
-                    (*new_param3).hdr.size =
-                        mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
-
-                    let status = ffi::mmal_port_parameter_get(
-                        self.camera.as_ref().control,
-                        &mut (*new_param3).hdr,
-                    );
-                    println!(
-                        "3 camera info {:?}\nparam: {:#?}\nnew param3: {:#?}\nparam3: {:#?}",
-                        status,
-                        (*new_param3).hdr,
-                        (*new_param3),
-                        (*param3)
-                    );
-
-                    Ok(())
-                }
-                e => Err(e),
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
+                s => Err(CameraError::with_status("Unable to set control port parmaeter", s)),
             }
         }
     }
@@ -889,9 +857,9 @@ impl SimpleCamera {
         let camera = &mut self.serious;
 
         camera.set_camera_num(0)?;
-        camera.create_encoder().unwrap();
-        camera.enable_control_port().unwrap();
-        camera.set_camera_params(&self.info).unwrap();
+        camera.create_encoder()?;
+        camera.enable_control_port()?;
+        camera.set_camera_params(&self.info)?;
 
         /*
         // Ensure there are enough buffers to avoid dropping frames
