@@ -345,7 +345,7 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_format(&mut self, info: &CameraInfo) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn set_camera_format(&mut self, info: &CameraInfo) -> Result<(), CameraError> {
         unsafe {
             let output = self.camera.as_ref().output;
             let output_num = self.camera.as_ref().output_num;
@@ -400,7 +400,7 @@ impl SeriousCamera {
             let mut status = ffi::mmal_port_format_commit(preview_port_ptr);
 
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(status);
+                return Err(CameraError::with_status("Unable to set preview port format", status));
             }
 
             // Set the same format on the video  port (which we don't use here)
@@ -408,7 +408,7 @@ impl SeriousCamera {
             status = ffi::mmal_port_format_commit(video_port_ptr);
 
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(status);
+                return Err(CameraError::with_status("Unable to set video port format", status));
             }
 
             if video_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
@@ -464,26 +464,21 @@ impl SeriousCamera {
                 ffi::MMAL_TRUE as i32,
             );
 
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(CameraError::with_status("Unable to enable zero copy", status))
+            }
+
+            status = ffi::mmal_port_format_commit(still_port_ptr);
             match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => {
-                    println!("set_camera_format still_port: {:?}, \nformat: {:?}\nes: {:?}\nencoding I420: {:?}\nencoding opaque: {:?}\nencoding jpeg: {:?}\nencoding rgb24: {:?}", still_port, *still_port.format, (*(*still_port.format).es).video, ffi::MMAL_ENCODING_I420, ffi::MMAL_ENCODING_OPAQUE, ffi::MMAL_ENCODING_JPEG, ffi::MMAL_ENCODING_RGB24);
-                    let status = ffi::mmal_port_format_commit(still_port_ptr);
-                    match status {
-                        MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
-                        e => Err(e),
-                    }
-                }
-                e => {
-                    println!("Failed to select zero copy");
-                    Err(e)
-                }
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
+                s => Err(CameraError::with_status("Unable to set still port format", s)),
             }
         }
     }
 
-    pub fn enable(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn enable(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let status = ffi::mmal_component_enable(&mut *self.camera.as_ptr() as *mut _);
+            let status = ffi::mmal_component_enable(&mut *self.camera.as_ptr());
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.enabled = true;
@@ -497,7 +492,7 @@ impl SeriousCamera {
                     //                   match status {
                     //                       MMAL_STATUS_T::MMAL_SUCCESS => {
                     //                           self.encoder_enabled = true;
-                    Ok(1)
+                    Ok(())
                     //                       },
                     //                       e => Err(e),
                     //                   }
@@ -505,7 +500,7 @@ impl SeriousCamera {
                     //               e => Err(e),
                     //   }
                 }
-                e => Err(e),
+                s => Err(CameraError::with_status("Unable to enable camera component", s)),
             }
         }
     }
@@ -524,7 +519,7 @@ impl SeriousCamera {
         }
     }
 
-    pub fn create_pool(&mut self) -> Result<(), String> {
+    pub fn create_pool(&mut self) -> Result<(), CameraError> {
         unsafe {
             let output = self.camera.as_ref().output;
             let still_port_ptr = *(output.offset(2) as *mut *mut ffi::MMAL_PORT_T);
@@ -535,11 +530,10 @@ impl SeriousCamera {
             );
 
             if pool.is_null() {
-                println!(
-                    "Failed to create buffer header pool for camera still port {:?}",
-                    (*still_port_ptr).name
-                );
-                Err("Null pool".to_string())
+                Err(CameraError::with_status(
+                    concat!("Failed to create buffer header pool for camera still port", stringify!((*still_port_ptr).name)),
+                    0 // there is no status here unusually
+                ))
             } else {
                 self.pool = Unique::new(pool).unwrap();
                 Ok(())
@@ -866,12 +860,9 @@ impl SimpleCamera {
         if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
         video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
         */
-        camera.set_camera_format(&self.info).unwrap();
-        println!("set camera format");
-        camera.enable().unwrap();
-        println!("camera enabled");
-        camera.create_pool().unwrap();
-        println!("pool created");
+        camera.set_camera_format(&self.info)?;
+        camera.enable()?;
+        camera.create_pool()?;
 
         camera.create_preview().unwrap();
         println!("preview created");
