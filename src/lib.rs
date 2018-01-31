@@ -505,16 +505,16 @@ impl SeriousCamera {
         }
     }
 
-    pub fn enable_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
+    pub fn enable_preview(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let status = ffi::mmal_component_enable(&mut *self.preview.as_ptr() as *mut _);
+            let status = ffi::mmal_component_enable(&mut *self.preview.as_ptr());
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     // TODO: fix
                     // self.enabled = true;
                     Ok(())
                 }
-                e => Err(e),
+                s => Err(CameraError::with_status("Unable to enable preview", s)),
             }
         }
     }
@@ -541,34 +541,28 @@ impl SeriousCamera {
         }
     }
 
-    pub fn create_preview(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
+    pub fn create_preview(&mut self) -> Result<(), CameraError> {
         unsafe {
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiPreview.c#L70
             // https://github.com/waveform80/picamera/issues/22
             // and the commit message that closed issue #22
-            let mut preview = Box::new(mem::zeroed());
-            let mut preview_ptr: *mut ffi::MMAL_COMPONENT_T = &mut *preview;
-            // Note that there appears to be no constant for the null sink but it does exist in the
-            // binaries.
-            let status = ffi::mmal_component_create(
-                b"vc.null_sink\x00".as_ptr(),
-                &mut preview_ptr as *mut _,
-            );
+            let mut preview_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
+            let status = ffi::mmal_component_create(ffi::MMAL_COMPONENT_NULL_SINK.as_ptr(), &mut preview_ptr);
+
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.preview = Unique::new(&mut *preview_ptr).unwrap();
                     self.preview_created = true;
                     Ok(())
                 }
-                e => Err(e),
+                s => Err(CameraError::with_status("Unable to create null sink for preview", s)),
             }
         }
     }
 
-    pub fn connect_ports(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
+    pub fn connect_ports(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let mut connection = Box::new(mem::zeroed());
-            let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = &mut *connection;
+            let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = mem::uninitialized();
 
             let preview_output_ptr = self.camera
                 .as_ref()
@@ -577,7 +571,7 @@ impl SeriousCamera {
             let preview_input_ptr = self.preview.as_ref().input.offset(0);
 
             let status = ffi::mmal_connection_create(
-                &mut connection_ptr as *mut _,
+                &mut connection_ptr,
                 *preview_output_ptr,
                 *preview_input_ptr,
                 ffi::MMAL_CONNECTION_FLAG_TUNNELLING
@@ -589,7 +583,7 @@ impl SeriousCamera {
                     // self.preview_created = true;
                     Ok(())
                 }
-                e => Err(e),
+                s => Err(CameraError::with_status("Unable to connect preview ports", s)),
             }
         }
     }
@@ -864,14 +858,11 @@ impl SimpleCamera {
         camera.enable()?;
         camera.create_pool()?;
 
-        camera.create_preview().unwrap();
-        println!("preview created");
-        camera.enable_preview().unwrap();
-        println!("preview enabled");
+        camera.create_preview()?;
+        camera.enable_preview()?;
 
         // camera.connect().unwrap();
-        camera.connect_ports().unwrap();
-        println!("camera ports connected");
+        camera.connect_ports()?;
 
         Ok(())
     }
