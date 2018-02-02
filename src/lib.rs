@@ -11,7 +11,6 @@ use std::fs::File;
 use std::slice;
 use std::string::String;
 use std::sync::{Once, ONCE_INIT};
-use std::{thread, time};
 use std::sync::mpsc;
 
 pub use error::CameraError;
@@ -340,7 +339,10 @@ impl SeriousCamera {
             let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut cfg.hdr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
-                s => Err(CameraError::with_status("Unable to set control port parmaeter", s)),
+                s => Err(CameraError::with_status(
+                    "Unable to set control port parmaeter",
+                    s,
+                )),
             }
         }
     }
@@ -400,7 +402,10 @@ impl SeriousCamera {
             let mut status = ffi::mmal_port_format_commit(preview_port_ptr);
 
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(CameraError::with_status("Unable to set preview port format", status));
+                return Err(CameraError::with_status(
+                    "Unable to set preview port format",
+                    status,
+                ));
             }
 
             // Set the same format on the video  port (which we don't use here)
@@ -408,7 +413,10 @@ impl SeriousCamera {
             status = ffi::mmal_port_format_commit(video_port_ptr);
 
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(CameraError::with_status("Unable to set video port format", status));
+                return Err(CameraError::with_status(
+                    "Unable to set video port format",
+                    status,
+                ));
             }
 
             if video_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
@@ -465,13 +473,19 @@ impl SeriousCamera {
             );
 
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(CameraError::with_status("Unable to enable zero copy", status))
+                return Err(CameraError::with_status(
+                    "Unable to enable zero copy",
+                    status,
+                ));
             }
 
             status = ffi::mmal_port_format_commit(still_port_ptr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
-                s => Err(CameraError::with_status("Unable to set still port format", s)),
+                s => Err(CameraError::with_status(
+                    "Unable to set still port format",
+                    s,
+                )),
             }
         }
     }
@@ -500,7 +514,10 @@ impl SeriousCamera {
                     //               e => Err(e),
                     //   }
                 }
-                s => Err(CameraError::with_status("Unable to enable camera component", s)),
+                s => Err(CameraError::with_status(
+                    "Unable to enable camera component",
+                    s,
+                )),
             }
         }
     }
@@ -531,8 +548,11 @@ impl SeriousCamera {
 
             if pool.is_null() {
                 Err(CameraError::with_status(
-                    concat!("Failed to create buffer header pool for camera still port", stringify!((*still_port_ptr).name)),
-                    0 // there is no status here unusually
+                    concat!(
+                        "Failed to create buffer header pool for camera still port",
+                        stringify!((*still_port_ptr).name)
+                    ),
+                    0, // there is no status here unusually
                 ))
             } else {
                 self.pool = Unique::new(pool).unwrap();
@@ -547,7 +567,10 @@ impl SeriousCamera {
             // https://github.com/waveform80/picamera/issues/22
             // and the commit message that closed issue #22
             let mut preview_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
-            let status = ffi::mmal_component_create(ffi::MMAL_COMPONENT_NULL_SINK.as_ptr(), &mut preview_ptr);
+            let status = ffi::mmal_component_create(
+                ffi::MMAL_COMPONENT_NULL_SINK.as_ptr(),
+                &mut preview_ptr,
+            );
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
@@ -555,7 +578,10 @@ impl SeriousCamera {
                     self.preview_created = true;
                     Ok(())
                 }
-                s => Err(CameraError::with_status("Unable to create null sink for preview", s)),
+                s => Err(CameraError::with_status(
+                    "Unable to create null sink for preview",
+                    s,
+                )),
             }
         }
     }
@@ -583,92 +609,74 @@ impl SeriousCamera {
                     // self.preview_created = true;
                     Ok(())
                 }
-                s => Err(CameraError::with_status("Unable to connect preview ports", s)),
+                s => Err(CameraError::with_status(
+                    "Unable to connect preview ports",
+                    s,
+                )),
             }
         }
     }
 
-    // TODO: callback when complete? future? stream?
-    pub fn take(&mut self) -> Result<(), ffi::MMAL_STATUS_T::Type> {
-        let sleep_duration = time::Duration::from_millis(5000);
-        thread::sleep(sleep_duration);
-
+    pub fn take(&mut self) -> Result<(), CameraError> {
         unsafe {
-            // speed 0 = auto
             let mut status = ffi::mmal_port_parameter_set_uint32(
                 self.camera.as_ref().control,
                 ffi::MMAL_PARAMETER_SHUTTER_SPEED as u32,
-                0,
+                0, // 0 = auto
             );
+
+            if status != ffi::MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(CameraError::with_status("Unable to set shutter speed", status));
+            }
+
+            // Send all the buffers to the camera output port
+            let num = ffi::mmal_queue_length(self.pool.as_ref().queue as *mut _);
+            println!("got length {}", num);
+            let output = self.camera.as_ref().output;
+            let still_port_ptr =
+                *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T);
+
+            for i in 0..num {
+                let buffer = ffi::mmal_queue_get(self.pool.as_ref().queue);
+                println!("got buffer {}", i);
+
+                if buffer.is_null() {
+                    return Err(CameraError::with_status(
+                        stringify!(format!(
+                            "Unable to get a required buffer {} from pool queue",
+                            i
+                        )),
+                        MMAL_STATUS_T::MMAL_STATUS_MAX,
+                    ));
+                } else {
+                    status = ffi::mmal_port_send_buffer(still_port_ptr, buffer);
+                    if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                        return Err(CameraError::with_status(
+                            stringify!(format!(
+                                "Unable to send a buffer to camera output port ({})",
+                                i
+                            )),
+                            status,
+                        ));
+                    }
+                }
+            }
+
+            status = ffi::mmal_port_parameter_set_boolean(
+                still_port_ptr,
+                ffi::MMAL_PARAMETER_CAPTURE as u32,
+                1,
+            );
+
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
-                    // Send all the buffers to the camera output port
-                    let num = ffi::mmal_queue_length(self.pool.as_ref().queue as *mut _);
-                    println!("got length {}", num);
-                    let output = self.camera.as_ref().output;
-                    let still_port_ptr =
-                        *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T);
-                    let i: u8 = 0;
-
-                    for i in 0..num {
-                        let buffer = ffi::mmal_queue_get(self.pool.as_ref().queue);
-                        println!("got buffer {}", i);
-
-                        if buffer.is_null() {
-                            println!("Unable to get a required buffer {} from pool queue", i);
-                            status = MMAL_STATUS_T::MMAL_STATUS_MAX;
-                            break;
-                        } else {
-                            status = ffi::mmal_port_send_buffer(still_port_ptr, buffer);
-                            if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                                break;
-                            }
-                        }
-                    }
-
-                    match status {
-                        MMAL_STATUS_T::MMAL_SUCCESS => {
-                            status = ffi::mmal_port_parameter_set_boolean(
-                                still_port_ptr,
-                                ffi::MMAL_PARAMETER_CAPTURE as u32,
-                                1,
-                            );
-
-                            match status {
-                                MMAL_STATUS_T::MMAL_SUCCESS => {
-                                    println!("Started capture");
-                                    // TODO: syncronisation
-                                    // How to handle both buffers - here you are
-                                    // and zero-copy buffers - give that back when you're done?
-                                    // Should SeriousCamera support both?
-                                    //
-                                    // thread park/unpark?
-                                    //
-                                    // mpsc::sync_channel with size 0?
-                                    //
-                                    // "oneshot" and "channel" futures?
-                                    // https://tokio.rs/docs/going-deeper-futures/synchronization/
-                                    //
-                                    //
-                                    Ok(())
-                                }
-                                e => {
-                                    println!("Could not set camera capture boolean");
-                                    Err(e)
-                                }
-                            }
-                        }
-                        e => {
-                            // TODO: is this the same "i" that is being used in the loop?
-                            println!("Unable to send a buffer to camera output port ({})", i);
-                            Err(e)
-                        }
-                    }
+                    println!("Started capture");
+                    Ok(())
                 }
-                e => {
-                    println!("unable to set shutter speed");
-                    Err(e)
-                }
+                s => Err(CameraError::with_status(
+                    "Unable to set camera capture boolean",
+                    s,
+                )),
             }
         }
     }
@@ -678,34 +686,16 @@ unsafe extern "C" fn camera_buffer_callback(
     port: *mut ffi::MMAL_PORT_T,
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
 ) {
-    // unsafe {
-    //     // Update the value in RustObject with the value received from the callback:
-    //     (*target).a = a;
-    // }
-    //
-
-    // let mut bytes_written: i32 = 0;
     let bytes_to_write = (*buffer).length;
     let mut complete = false;
 
     println!("I'm called from C. buffer length: {}", bytes_to_write);
 
-    // TODO: this is probably unsafe as Rust has no knowledge of this so it could have already been
-    // dropped!
     let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
-    // let cb = Box::from_raw((*port).userdata);
     let pdata: &mut Userdata = &mut *pdata_ptr;
 
     if !pdata_ptr.is_null() {
-        // if !pdata.file_open {
-        //     pdata.file_open = true;
-        //     pdata.file = File::create("image1.rgb").unwrap();
-        //     // pdata.file2 = File::create("image2.rgb").unwrap();
-        // }
-
-        if bytes_to_write > 0
-        // && pdata->file_handle
-        {
+        if bytes_to_write > 0 {
             ffi::mmal_buffer_header_mem_lock(buffer);
 
             (pdata.callback)(Some(&mut *buffer));
@@ -896,9 +886,6 @@ impl SimpleCamera {
         });
 
         self.serious.enable_still_port(cb).unwrap();
-        println!("camera still port enabled");
-
-        println!("taking photo");
 
         self.serious
             .take()
