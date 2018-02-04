@@ -12,6 +12,7 @@ use std::slice;
 use std::string::String;
 use std::sync::{Once, ONCE_INIT};
 use std::sync::mpsc;
+use std::os::raw::c_uint;
 
 pub use error::CameraError;
 
@@ -26,6 +27,13 @@ const VIDEO_OUTPUT_BUFFERS_NUM: u32 = 3;
 
 const PREVIEW_FRAME_RATE_NUM: i32 = 0;
 const PREVIEW_FRAME_RATE_DEN: i32 = 1;
+
+// TODO: what about the rest of these formats?
+pub use ffi::MMAL_ENCODING_JPEG;
+pub use ffi::MMAL_ENCODING_GIF;
+pub use ffi::MMAL_ENCODING_PNG;
+
+pub use ffi::MMAL_ENCODING_OPAQUE;
 
 // type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
 
@@ -291,19 +299,18 @@ impl SeriousCamera {
         }
     }
 
-    pub fn enable_still_port(
-        &mut self,
-        callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
-    ) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
-        unsafe {
-            let data = Box::new(Userdata {
-                pool: self.pool,
-                callback: callback,
-            });
-            let data_ptr = Box::into_raw(data);
-            (**self.camera.as_ref().output.offset(2)).userdata =
-                data_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
+    pub unsafe fn set_buffer_callback(&mut self, callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>) {
+        let data = Box::new(Userdata {
+            pool: self.pool,
+            callback: callback,
+        });
+        let data_ptr = Box::into_raw(data);
+        (**self.camera.as_ref().output.offset(2)).userdata =
+            data_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
+    }
 
+    pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+        unsafe {
             let status = ffi::mmal_port_enable(
                 *self.camera.as_ref().output.offset(2),
                 Some(camera_buffer_callback),
@@ -347,7 +354,7 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_format(&mut self, info: &CameraInfo) -> Result<(), CameraError> {
+    pub fn set_camera_format(&mut self, mut encoding: c_uint, width: u32, height: u32, zero_copy: bool) -> Result<(), CameraError> {
         unsafe {
             let output = self.camera.as_ref().output;
             let output_num = self.camera.as_ref().output_num;
@@ -360,7 +367,6 @@ impl SeriousCamera {
                 )
             );
 
-            // the following lines are not very pretty or safe
             let preview_port_ptr =
                 *(output.offset(MMAL_CAMERA_PREVIEW_PORT) as *mut *mut ffi::MMAL_PORT_T);
             let video_port_ptr =
@@ -374,6 +380,14 @@ impl SeriousCamera {
             let mut still_port = *still_port_ptr;
             mem::forget(still_port);
 
+            if encoding == ffi::MMAL_ENCODING_RGB24 || encoding == ffi::MMAL_ENCODING_BGR24 {
+                encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 1 {
+                    ffi::MMAL_ENCODING_RGB24
+                } else {
+                    ffi::MMAL_ENCODING_BGR24
+                };
+            }
+
             // TODO:
             //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
@@ -381,7 +395,7 @@ impl SeriousCamera {
             mem::forget(format);
 
             // (*format).encoding = ffi::MMAL_ENCODING_BGR24;
-            (*format).encoding = ffi::MMAL_ENCODING_RGB24;
+            (*format).encoding = encoding;
             // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
             // (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
             // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
@@ -389,7 +403,7 @@ impl SeriousCamera {
             let mut es = (*format).es;
             mem::forget(es);
 
-            //   Use a full FOV 4:3 mode
+            // Use a full FOV 4:3 mode
             (*es).video.width = ffi::vcos_align_up(1024, 32);
             (*es).video.height = ffi::vcos_align_up(768, 16);
             (*es).video.crop.x = 0;
@@ -408,7 +422,7 @@ impl SeriousCamera {
                 ));
             }
 
-            // Set the same format on the video  port (which we don't use here)
+            // Set the same format on the video port (which we don't use here)
             ffi::mmal_format_full_copy(video_port.format, preview_port.format);
             status = ffi::mmal_port_format_commit(video_port_ptr);
 
@@ -432,11 +446,7 @@ impl SeriousCamera {
              * On firmware prior to June 2016, camera and video_splitter
              * had BGR24 and RGB24 support reversed.
              */
-            (*format).encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 1 {
-                ffi::MMAL_ENCODING_RGB24
-            } else {
-                ffi::MMAL_ENCODING_BGR24
-            };
+            (*format).encoding = encoding;
             (*format).encoding_variant = 0; //Irrelevant when not in opaque mode
 
             // (*still_port.format).encoding = ffi::MMAL_ENCODING_JPEG;
@@ -451,12 +461,12 @@ impl SeriousCamera {
             es = (*format).es;
             mem::forget(es);
 
-            (*es).video.width = ffi::vcos_align_up(info.max_width, 32);
-            (*es).video.height = ffi::vcos_align_up(info.max_height, 16);
+            (*es).video.width = ffi::vcos_align_up(width, 32);
+            (*es).video.height = ffi::vcos_align_up(height, 16);
             (*es).video.crop.x = 0;
             (*es).video.crop.y = 0;
-            (*es).video.crop.width = info.max_width as i32;
-            (*es).video.crop.height = info.max_height as i32;
+            (*es).video.crop.width = width as i32;
+            (*es).video.crop.height = height as i32;
             (*es).video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
             (*es).video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
 
@@ -466,17 +476,19 @@ impl SeriousCamera {
 
             still_port.buffer_num = still_port.buffer_num_recommended;
 
-            status = ffi::mmal_port_parameter_set_boolean(
-                video_port_ptr,
-                ffi::MMAL_PARAMETER_ZERO_COPY as u32,
-                ffi::MMAL_TRUE as i32,
-            );
+            if zero_copy {
+                status = ffi::mmal_port_parameter_set_boolean(
+                    video_port_ptr,
+                    ffi::MMAL_PARAMETER_ZERO_COPY as u32,
+                    ffi::MMAL_TRUE as i32,
+                );
 
-            if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(CameraError::with_status(
-                    "Unable to enable zero copy",
-                    status,
-                ));
+                if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    return Err(CameraError::with_status(
+                        "Unable to enable zero copy",
+                        status,
+                    ));
+                }
             }
 
             status = ffi::mmal_port_format_commit(still_port_ptr);
@@ -844,7 +856,8 @@ impl SimpleCamera {
         if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
         video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
         */
-        camera.set_camera_format(&self.info)?;
+        // camera.set_camera_format(ffi::MMAL_ENCODING_JPEG, self.info.max_width, self.info.max_height, false)?;
+        camera.set_camera_format(ffi::MMAL_ENCODING_RGB24, self.info.max_width, self.info.max_height, false)?;
         camera.enable()?;
         camera.create_pool()?;
 
@@ -860,10 +873,6 @@ impl SimpleCamera {
     pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
         let (sender, receiver) = mpsc::sync_channel(1);
 
-        let w = self.info.max_width;
-        let h = self.info.max_height;
-        let size = (w * h * 3) as usize;
-
         let cb = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
             if o.is_none() {
                 sender.send(None).unwrap();
@@ -871,21 +880,16 @@ impl SimpleCamera {
             }
 
             let buf = o.unwrap();
-
             let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
-            let mem_width = ffi::vcos_align_up(w, 32) as usize;
-            let data_length = (w as usize) * 3;
-            let mut s2: Vec<u8> = Vec::with_capacity(size as usize);
 
-            for i in 0..(h as usize) {
-                let row_offset = i * mem_width * 3;
-                s2.extend(&s[row_offset..row_offset + data_length]);
-            }
-
-            sender.send(Some(s2)).unwrap();
+            sender.send(Some(s)).unwrap();
         });
 
-        self.serious.enable_still_port(cb).unwrap();
+        unsafe { self.serious.set_buffer_callback(cb); }
+
+        if !self.serious.still_port_enabled {
+            self.serious.enable_still_port().unwrap();
+        }
 
         self.serious
             .take()
@@ -900,7 +904,8 @@ impl SimpleCamera {
                 .recv()
                 .map_err(|_| "Could not receive complete message")?;
             if complete.is_none() {
-                Ok(b.unwrap())
+                // TODO: .to_vec()?
+                Ok(b.unwrap().to_vec())
             } else {
                 Err("Got buffer buffer expected complete".into())
             }
