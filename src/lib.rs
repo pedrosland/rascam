@@ -35,6 +35,8 @@ pub use ffi::MMAL_ENCODING_PNG;
 
 pub use ffi::MMAL_ENCODING_OPAQUE;
 
+pub use ffi::MMAL_ENCODING_RGB24;
+
 // type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
 
 pub struct Info {
@@ -150,14 +152,15 @@ pub struct SeriousCamera {
     camera: Unique<ffi::MMAL_COMPONENT_T>,
     outputs: Vec<ffi::MMAL_PORT_T>,
     enabled: bool,
-    port_enabled: bool,
+    camera_port_enabled: bool,
     still_port_enabled: bool,
     pool: Unique<ffi::MMAL_POOL_T>,
 
     encoder: Unique<ffi::MMAL_COMPONENT_T>,
     encoder_created: bool,
     encoder_enabled: bool,
-    encoder_port_enabled: bool,
+    encoder_control_port_enabled: bool,
+    encoder_output_port_enabled: bool,
 
     connection: Unique<ffi::MMAL_CONNECTION_T>,
     connection_created: bool,
@@ -169,6 +172,8 @@ pub struct SeriousCamera {
     file_open: bool,
     // FnOnce
     // buffer_callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>,
+
+    use_encoder: bool,
 }
 
 impl SeriousCamera {
@@ -206,13 +211,14 @@ impl SeriousCamera {
                     camera: Unique::new(&mut *camera_ptr).unwrap(),
                     outputs: Vec::new(),
                     enabled: false,
-                    port_enabled: false,
+                    camera_port_enabled: false,
                     pool: mem::zeroed(),
                     still_port_enabled: false,
                     // this is really a hack. ideally these objects wouldn't be structured this way
                     encoder_created: false,
                     encoder_enabled: false,
-                    encoder_port_enabled: false,
+                    encoder_control_port_enabled: false,
+                    encoder_output_port_enabled: false,
                     encoder: mem::zeroed(),
                     connection_created: false,
                     connection: mem::zeroed(),
@@ -220,8 +226,7 @@ impl SeriousCamera {
                     preview: mem::zeroed(),
                     file: mem::uninitialized(),
                     file_open: false,
-                    // buffer_callback: Box::new(|_| ()),
-                    // zero_copy_cb:
+                    use_encoder: false,
                 }),
                 e => Err(e),
             }
@@ -260,38 +265,38 @@ impl SeriousCamera {
         }
     }
 
-    pub fn connect(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
+    pub fn connect_encoder(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let mut connection: ffi::MMAL_CONNECTION_T = mem::zeroed();
-            let mut state_ptr = &mut connection as *mut _;
+            let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = mem::uninitialized();
             let status = ffi::mmal_connection_create(
-                &mut state_ptr as *mut _,
-                *self.camera.as_ref().output,
-                *self.encoder.as_ref().input,
-                0,
+                &mut connection_ptr,
+                *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT),
+                *self.encoder.as_ref().input.offset(0),
+                ffi::MMAL_CONNECTION_FLAG_TUNNELLING | ffi::MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT,
             );
-            match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => {
-                    self.connection = Unique::new(&mut connection).unwrap();
-                    self.connection_created = true;
-                    let status = ffi::mmal_connection_enable(self.connection.as_ptr());
-                    match status {
-                        MMAL_STATUS_T::MMAL_SUCCESS => Ok(1),
-                        e => Err(e),
-                    }
-                }
-                e => Err(e),
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(CameraError::with_status("Unable to create camera->encoder connection", status));
             }
+
+            self.connection = Unique::new(&mut *connection_ptr).unwrap();
+            self.connection_created = true;
+            let status = ffi::mmal_connection_enable(&mut *connection_ptr);
+            match status {
+                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
+                s => Err(CameraError::with_status("Unable to enable camera->encoder connection", s))
+            }
+            // Ok(())
         }
     }
 
-    pub fn enable_control_port(&mut self) -> Result<(), CameraError> {
+    pub fn enable_control_port(&mut self, get_buffers: bool) -> Result<(), CameraError> {
         unsafe {
+            let cb: ffi::MMAL_PORT_BH_CB_T = if get_buffers { Some(camera_buffer_callback) } else { Some(camera_control_callback) };
             let status =
-                ffi::mmal_port_enable(self.camera.as_ref().control, Some(camera_control_callback));
+                ffi::mmal_port_enable(self.camera.as_ref().control, cb);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
-                    self.port_enabled = true;
+                    self.camera_port_enabled = true;
                     Ok(())
                 }
                 s => Err(CameraError::with_status("Unable to enable control port", s)),
@@ -299,14 +304,35 @@ impl SeriousCamera {
         }
     }
 
-    pub unsafe fn set_buffer_callback(&mut self, callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>) {
+    pub fn enable_encoder_port(&mut self) -> Result<(), CameraError> {
+        unsafe {
+            let status =
+                ffi::mmal_port_enable(*self.encoder.as_ref().output.offset(0), Some(camera_buffer_callback));
+            match status {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    self.encoder_output_port_enabled = true;
+                    Ok(())
+                }
+                s => Err(CameraError::with_status("Unable to enable encoder port", s)),
+            }
+        }
+    }
+
+    pub unsafe fn set_buffer_callback(
+        &mut self,
+        callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
+    ) {
         let data = Box::new(Userdata {
             pool: self.pool,
             callback: callback,
         });
         let data_ptr = Box::into_raw(data);
-        (**self.camera.as_ref().output.offset(2)).userdata =
-            data_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
+        let mut port = if self.use_encoder {
+            (*self.encoder.as_ref().output.offset(0))
+        } else {
+            (*self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT))
+        };
+        (*port).userdata = data_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
     }
 
     pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
@@ -335,7 +361,8 @@ impl SeriousCamera {
             cfg.max_stills_w = info.max_width;
             cfg.max_stills_h = info.max_height;
             cfg.stills_yuv422 = 0;
-            cfg.one_shot_stills = 1;
+            // cfg.one_shot_stills = 1;
+            cfg.one_shot_stills = 0;
             cfg.max_preview_video_w = info.max_width;
             cfg.max_preview_video_h = info.max_height;
             cfg.num_preview_video_frames = 1;
@@ -354,8 +381,17 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_format(&mut self, mut encoding: c_uint, width: u32, height: u32, zero_copy: bool) -> Result<(), CameraError> {
+    pub fn set_camera_format(
+        &mut self,
+        mut encoding: c_uint,
+        width: u32,
+        height: u32,
+        zero_copy: bool,
+        use_encoder: bool,
+    ) -> Result<(), CameraError> {
         unsafe {
+            self.use_encoder = use_encoder;
+
             let output = self.camera.as_ref().output;
             let output_num = self.camera.as_ref().output_num;
             assert_eq!(
@@ -380,6 +416,8 @@ impl SeriousCamera {
             let mut still_port = *still_port_ptr;
             mem::forget(still_port);
 
+            // On firmware prior to June 2016, camera and video_splitter
+            // had BGR24 and RGB24 support reversed.
             if encoding == ffi::MMAL_ENCODING_RGB24 || encoding == ffi::MMAL_ENCODING_BGR24 {
                 encoding = if ffi::mmal_util_rgb_order_fixed(still_port_ptr) == 1 {
                     ffi::MMAL_ENCODING_RGB24
@@ -394,9 +432,12 @@ impl SeriousCamera {
             let mut format = preview_port.format;
             mem::forget(format);
 
-            // (*format).encoding = ffi::MMAL_ENCODING_BGR24;
-            (*format).encoding = encoding;
-            // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+            if use_encoder {
+                (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            } else {
+                (*format).encoding = encoding;
+                (*format).encoding_variant = 0; //Irrelevant when not in opaque mode
+            }
             // (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
             // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
 
@@ -422,6 +463,10 @@ impl SeriousCamera {
                 ));
             }
 
+            if video_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
+                video_port.buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
+            }
+
             // Set the same format on the video port (which we don't use here)
             ffi::mmal_format_full_copy(video_port.format, preview_port.format);
             status = ffi::mmal_port_format_commit(video_port_ptr);
@@ -433,21 +478,17 @@ impl SeriousCamera {
                 ));
             }
 
-            if video_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
-                video_port.buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
-            }
-
             format = still_port.format;
             mem::forget(format);
 
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L799
 
-            /*
-             * On firmware prior to June 2016, camera and video_splitter
-             * had BGR24 and RGB24 support reversed.
-             */
-            (*format).encoding = encoding;
-            (*format).encoding_variant = 0; //Irrelevant when not in opaque mode
+            if use_encoder {
+                (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            } else {
+                (*format).encoding = encoding;
+                (*format).encoding_variant = 0; //Irrelevant when not in opaque mode
+            }
 
             // (*still_port.format).encoding = ffi::MMAL_ENCODING_JPEG;
             // (*still_port.format).encoding_variant = ffi::MMAL_ENCODING_JPEG;
@@ -470,6 +511,7 @@ impl SeriousCamera {
             (*es).video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
             (*es).video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
 
+            // TODO: should this be before or after the commit?
             if still_port.buffer_size < still_port.buffer_size_min {
                 still_port.buffer_size = still_port.buffer_size_min;
             }
@@ -492,13 +534,70 @@ impl SeriousCamera {
             }
 
             status = ffi::mmal_port_format_commit(still_port_ptr);
-            match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
-                s => Err(CameraError::with_status(
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(CameraError::with_status(
                     "Unable to set still port format",
-                    s,
-                )),
+                    status,
+                ));
             }
+
+            if !use_encoder {
+                return Ok(());
+            }
+
+            let encoder_in_port_ptr = *(self.encoder.as_ref().input.offset(0) as *mut *mut ffi::MMAL_PORT_T);
+            let encoder_out_port_ptr = *(self.encoder.as_ref().output.offset(0) as *mut *mut ffi::MMAL_PORT_T);
+            let encoder_in_port = *encoder_in_port_ptr;
+            let mut encoder_out_port = *encoder_out_port_ptr;
+
+            // We want same format on input and output
+            ffi::mmal_format_copy(encoder_out_port.format, encoder_in_port.format);
+
+            format = encoder_out_port.format;
+            (*format).encoding = encoding;
+
+            encoder_out_port.buffer_size = encoder_out_port.buffer_size_recommended;
+            if encoder_out_port.buffer_size < encoder_out_port.buffer_size_min {
+                encoder_out_port.buffer_size = encoder_out_port.buffer_size_min;
+            }
+
+            encoder_out_port.buffer_num = encoder_out_port.buffer_num_recommended;
+            if encoder_out_port.buffer_num < encoder_out_port.buffer_num_min {
+                encoder_out_port.buffer_num = encoder_out_port.buffer_num_min;
+            }
+
+            status = ffi::mmal_port_format_commit(encoder_out_port_ptr);
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(CameraError::with_status(
+                    "Unable to set encoder output port format",
+                    status,
+                ));
+            }
+
+            if encoding == ffi::MMAL_ENCODING_JPEG || encoding == ffi::MMAL_ENCODING_MJPEG {
+                // Set the JPEG quality level
+                status = ffi::mmal_port_parameter_set_uint32(encoder_out_port_ptr, ffi::MMAL_PARAMETER_JPEG_Q_FACTOR, 90);
+                if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    return Err(CameraError::with_status(
+                        "Unable to set JPEG quality",
+                        status,
+                    ));
+                }
+
+                // Set the JPEG restart interval
+                status = ffi::mmal_port_parameter_set_uint32(encoder_out_port_ptr, ffi::MMAL_PARAMETER_JPEG_RESTART_INTERVAL, 0);
+                if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    return Err(CameraError::with_status(
+                        "Unable to set JPEG restart interval",
+                        status,
+                    ));
+                }
+            }
+
+            // TODO: thumbnails
+            // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStill.c#L1290
+
+            Ok(())
         }
     }
 
@@ -508,26 +607,37 @@ impl SeriousCamera {
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.enabled = true;
-                    //
-                    //            let status = ffi::mmal_port_enable(self.encoder.as_ref().control, None);
-                    //            match status {
-                    //                MMAL_STATUS_T::MMAL_SUCCESS => {
-                    //                    self.encoder_port_enabled = true;
-                    //
-                    //                   let status = ffi::mmal_component_enable(self.encoder.as_ptr());
-                    //                   match status {
-                    //                       MMAL_STATUS_T::MMAL_SUCCESS => {
-                    //                           self.encoder_enabled = true;
                     Ok(())
-                    //                       },
-                    //                       e => Err(e),
-                    //                   }
-                    //               },
-                    //               e => Err(e),
-                    //   }
                 }
                 s => Err(CameraError::with_status(
                     "Unable to enable camera component",
+                    s,
+                )),
+            }
+        }
+    }
+
+    pub fn enable_encoder(&mut self) -> Result<(), CameraError> {
+        unsafe {
+            let status = ffi::mmal_port_enable(self.encoder.as_ref().control, None);
+            match status {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    self.encoder_control_port_enabled = true;
+
+                    let status = ffi::mmal_component_enable(self.encoder.as_ptr());
+                    match status {
+                        MMAL_STATUS_T::MMAL_SUCCESS => {
+                            self.encoder_enabled = true;
+                            Ok(())
+                        }
+                        s => Err(CameraError::with_status(
+                            "Unable to enable encoder component",
+                            s,
+                        )),
+                    }
+                }
+                s => Err(CameraError::with_status(
+                    "Unable to enable encoder control port",
                     s,
                 )),
             }
@@ -550,19 +660,25 @@ impl SeriousCamera {
 
     pub fn create_pool(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let output = self.camera.as_ref().output;
-            let still_port_ptr = *(output.offset(2) as *mut *mut ffi::MMAL_PORT_T);
+            let port_ptr = if self.use_encoder {
+                let output = self.encoder.as_ref().output;
+                *(output.offset(0) as *mut *mut ffi::MMAL_PORT_T)
+            } else {
+                let output = self.camera.as_ref().output;
+                *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T)
+            };
+
             let pool = ffi::mmal_port_pool_create(
-                still_port_ptr,
-                (*still_port_ptr).buffer_num,
-                (*still_port_ptr).buffer_size,
+                port_ptr,
+                (*port_ptr).buffer_num,
+                (*port_ptr).buffer_size,
             );
 
             if pool.is_null() {
                 Err(CameraError::with_status(
                     concat!(
-                        "Failed to create buffer header pool for camera still port",
-                        stringify!((*still_port_ptr).name)
+                        "Failed to create buffer header pool for camera port",
+                        stringify!((*port_ptr).name)
                     ),
                     0, // there is no status here unusually
                 ))
@@ -598,7 +714,7 @@ impl SeriousCamera {
         }
     }
 
-    pub fn connect_ports(&mut self) -> Result<(), CameraError> {
+    pub fn connect_preview(&mut self) -> Result<(), CameraError> {
         unsafe {
             let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = mem::uninitialized();
 
@@ -638,15 +754,29 @@ impl SeriousCamera {
             );
 
             if status != ffi::MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(CameraError::with_status("Unable to set shutter speed", status));
+                return Err(CameraError::with_status(
+                    "Unable to set shutter speed",
+                    status,
+                ));
             }
 
             // Send all the buffers to the camera output port
             let num = ffi::mmal_queue_length(self.pool.as_ref().queue as *mut _);
             println!("got length {}", num);
             let output = self.camera.as_ref().output;
+
             let still_port_ptr =
                 *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T);
+            let buffer_port_ptr;
+
+            if self.use_encoder {
+                let encoder_out_port_ptr = *(self.encoder.as_ref().output as *mut *mut ffi::MMAL_PORT_T);
+                buffer_port_ptr = encoder_out_port_ptr;
+            } else {
+                buffer_port_ptr = still_port_ptr;
+            }
+
+            println!("assigning pool of {} buffers size {}", (*buffer_port_ptr).buffer_num, (*buffer_port_ptr).buffer_size);
 
             for i in 0..num {
                 let buffer = ffi::mmal_queue_get(self.pool.as_ref().queue);
@@ -661,7 +791,7 @@ impl SeriousCamera {
                         MMAL_STATUS_T::MMAL_STATUS_MAX,
                     ));
                 } else {
-                    status = ffi::mmal_port_send_buffer(still_port_ptr, buffer);
+                    status = ffi::mmal_port_send_buffer(buffer_port_ptr, buffer);
                     if status != MMAL_STATUS_T::MMAL_SUCCESS {
                         return Err(CameraError::with_status(
                             stringify!(format!(
@@ -679,6 +809,10 @@ impl SeriousCamera {
                 ffi::MMAL_PARAMETER_CAPTURE as u32,
                 1,
             );
+
+            // if self.use_encoder {
+            //     status = ffi::mmal_port_parameter_set_boolean(buffer_port_ptr, ffi::MMAL_PARAMETER_EXIF_DISABLE, 1);
+            // }
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
@@ -814,7 +948,11 @@ impl Drop for SeriousCamera {
                 ffi::mmal_component_disable(self.camera.as_ptr());
                 println!("camera disabled");
             }
-            if self.port_enabled {
+            if self.encoder_control_port_enabled {
+                ffi::mmal_port_disable(self.encoder.as_ref().control);
+                println!("port disabled");
+            }
+            if self.camera_port_enabled {
                 ffi::mmal_port_disable(self.camera.as_ref().control);
                 println!("port disabled");
             }
@@ -848,24 +986,29 @@ impl SimpleCamera {
 
         camera.set_camera_num(0)?;
         camera.create_encoder()?;
-        camera.enable_control_port()?;
         camera.set_camera_params(&self.info)?;
 
-        /*
-        // Ensure there are enough buffers to avoid dropping frames
-        if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
-        video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
-        */
+        camera.create_preview()?;
+
         // camera.set_camera_format(ffi::MMAL_ENCODING_JPEG, self.info.max_width, self.info.max_height, false)?;
-        camera.set_camera_format(ffi::MMAL_ENCODING_RGB24, self.info.max_width, self.info.max_height, false)?;
+        camera.set_camera_format(
+            ffi::MMAL_ENCODING_JPEG,
+            self.info.max_width,
+            self.info.max_height,
+            false,
+            true,
+        )?;
+        camera.enable_control_port(false)?;
+
+
         camera.enable()?;
+        camera.enable_encoder()?; // only needed if processing image eg returning jpeg
         camera.create_pool()?;
 
-        camera.create_preview()?;
-        camera.enable_preview()?;
+        camera.connect_preview()?;
+        // camera.enable_preview()?;
 
-        // camera.connect().unwrap();
-        camera.connect_ports()?;
+        camera.connect_encoder()?;
 
         Ok(())
     }
@@ -882,33 +1025,39 @@ impl SimpleCamera {
             let buf = o.unwrap();
             let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
 
-            sender.send(Some(s)).unwrap();
+            sender.send(Some(Box::new(s.to_vec()))).unwrap();
         });
 
-        unsafe { self.serious.set_buffer_callback(cb); }
+        unsafe {
+            self.serious.set_buffer_callback(cb);
+        }
 
-        if !self.serious.still_port_enabled {
-            self.serious.enable_still_port().unwrap();
+        if self.serious.use_encoder {
+            if !self.serious.encoder_output_port_enabled {
+                self.serious.enable_encoder_port().unwrap();
+            }
+        } else {
+            if !self.serious.still_port_enabled {
+                self.serious.enable_still_port().unwrap();
+            }
         }
 
         self.serious
             .take()
             .map_err(|e| format!("take error: {}", e))?;
 
-        let b = receiver.recv().map_err(|_| "Could not receive buffer")?;
+        let mut c = Vec::new();
+        loop {
+            let mut b = receiver.recv().map_err(|_| "Could not receive buffer")?;
 
-        if b.is_none() {
-            Err("No buffer present".into())
-        } else {
-            let complete = receiver
-                .recv()
-                .map_err(|_| "Could not receive complete message")?;
-            if complete.is_none() {
-                // TODO: .to_vec()?
-                Ok(b.unwrap().to_vec())
-            } else {
-                Err("Got buffer buffer expected complete".into())
+            if b.is_none() {
+                if c.len() == 0 {
+                    return Err("Expected to receive some data".into());
+                }
+                return Ok(c);
             }
+
+            c.extend(*b.unwrap());
         }
     }
 }

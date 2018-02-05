@@ -46,7 +46,7 @@ fn serious(info: &CameraInfo) {
     println!("camera number set");
     camera.create_encoder().unwrap();
     println!("encoder created");
-    camera.enable_control_port().unwrap();
+    camera.enable_control_port(true).unwrap();
     println!("camera control port enabled");
     camera.set_camera_params(info).unwrap();
     println!("camera params set");
@@ -56,7 +56,9 @@ fn serious(info: &CameraInfo) {
    if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
    video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
   */
-    camera.set_camera_format(MMAL_ENCODING_JPEG, info.max_width, info.max_height, true).unwrap();
+    camera
+        .set_camera_format(MMAL_ENCODING_RGB24, info.max_width, info.max_height, true, false)
+        .unwrap();
     println!("set camera format");
     camera.enable().unwrap();
     println!("camera enabled");
@@ -65,12 +67,12 @@ fn serious(info: &CameraInfo) {
 
     camera.create_preview().unwrap();
     println!("preview created");
+    camera.connect_preview().unwrap();
+    println!("preview connected");
     camera.enable_preview().unwrap();
     println!("preview enabled");
 
-    // camera.connect().unwrap();
-    camera.connect_ports().unwrap();
-    println!("camera ports connected");
+    // camera.connect_encoder().unwrap();
 
     // camera.enable_still_port(cb).unwrap();
     println!("camera still port enabled");
@@ -96,7 +98,9 @@ fn serious(info: &CameraInfo) {
 
 // Run function and return result with seconds duration
 pub fn time<F, T>(f: F) -> (T, f64)
-    where F: FnOnce() -> T {
+where
+    F: FnOnce() -> T,
+{
     let start = time::Instant::now();
     let res = f();
     let end = time::Instant::now();
@@ -121,14 +125,19 @@ pub fn bench_jpegs_per_sec(n: i32) {
 
     for _ in 0..n {
         let images = 20;
-        let (_, runtime) = time(|| {
-            bench_jpegs(20, &mut b)
-        });
+        let (_, runtime) = time(|| bench_jpegs(20, &mut b));
         let images_per_sec = images as f64 / runtime;
-        println!("{} images in {} sec, {:.2} images/sec", images, runtime, images_per_sec);
+        println!(
+            "{} images in {} sec, {:.2} images/sec",
+            images, runtime, images_per_sec
+        );
         runs.push(images_per_sec);
     }
-    println!("Avg: {:.2} images/sec from {} runs", runs.iter().sum::<f64>() / (runs.len() as f64), runs.len());
+    println!(
+        "Avg: {:.2} images/sec from {} runs",
+        runs.iter().sum::<f64>() / (runs.len() as f64),
+        runs.len()
+    );
 }
 
 pub fn bench_jpegs(n: i32, camera: &mut Box<SimpleCamera>) {
