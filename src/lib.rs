@@ -10,7 +10,7 @@ use std::ptr::Unique;
 use std::fs::File;
 use std::slice;
 use std::string::String;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::{Arc, Mutex, Once, ONCE_INIT};
 use std::sync::mpsc;
 use std::os::raw::c_uint;
 
@@ -144,7 +144,7 @@ pub fn info() -> Result<Info, CameraError> {
 
 struct Userdata {
     pool: Unique<ffi::MMAL_POOL_T>,
-    callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
+    callback: Box<FnMut(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
 }
 
 #[repr(C)]
@@ -172,7 +172,6 @@ pub struct SeriousCamera {
     file_open: bool,
     // FnOnce
     // buffer_callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>,
-
     use_encoder: bool,
 }
 
@@ -272,10 +271,14 @@ impl SeriousCamera {
                 &mut connection_ptr,
                 *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT),
                 *self.encoder.as_ref().input.offset(0),
-                ffi::MMAL_CONNECTION_FLAG_TUNNELLING | ffi::MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT,
+                ffi::MMAL_CONNECTION_FLAG_TUNNELLING
+                    | ffi::MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT,
             );
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(CameraError::with_status("Unable to create camera->encoder connection", status));
+                return Err(CameraError::with_status(
+                    "Unable to create camera->encoder connection",
+                    status,
+                ));
             }
 
             self.connection = Unique::new(&mut *connection_ptr).unwrap();
@@ -283,7 +286,10 @@ impl SeriousCamera {
             let status = ffi::mmal_connection_enable(&mut *connection_ptr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
-                s => Err(CameraError::with_status("Unable to enable camera->encoder connection", s))
+                s => Err(CameraError::with_status(
+                    "Unable to enable camera->encoder connection",
+                    s,
+                )),
             }
             // Ok(())
         }
@@ -291,9 +297,12 @@ impl SeriousCamera {
 
     pub fn enable_control_port(&mut self, get_buffers: bool) -> Result<(), CameraError> {
         unsafe {
-            let cb: ffi::MMAL_PORT_BH_CB_T = if get_buffers { Some(camera_buffer_callback) } else { Some(camera_control_callback) };
-            let status =
-                ffi::mmal_port_enable(self.camera.as_ref().control, cb);
+            let cb: ffi::MMAL_PORT_BH_CB_T = if get_buffers {
+                Some(camera_buffer_callback)
+            } else {
+                Some(camera_control_callback)
+            };
+            let status = ffi::mmal_port_enable(self.camera.as_ref().control, cb);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.camera_port_enabled = true;
@@ -306,8 +315,10 @@ impl SeriousCamera {
 
     pub fn enable_encoder_port(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let status =
-                ffi::mmal_port_enable(*self.encoder.as_ref().output.offset(0), Some(camera_buffer_callback));
+            let status = ffi::mmal_port_enable(
+                *self.encoder.as_ref().output.offset(0),
+                Some(camera_buffer_callback),
+            );
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     self.encoder_output_port_enabled = true;
@@ -320,14 +331,14 @@ impl SeriousCamera {
 
     pub unsafe fn set_buffer_callback(
         &mut self,
-        callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
+        callback: Box<FnMut(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
     ) {
         let data = Box::new(Userdata {
             pool: self.pool,
             callback: callback,
         });
         let data_ptr = Box::into_raw(data);
-        let mut port = if self.use_encoder {
+        let port = if self.use_encoder {
             (*self.encoder.as_ref().output.offset(0))
         } else {
             (*self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT))
@@ -361,8 +372,7 @@ impl SeriousCamera {
             cfg.max_stills_w = info.max_width;
             cfg.max_stills_h = info.max_height;
             cfg.stills_yuv422 = 0;
-            // cfg.one_shot_stills = 1;
-            cfg.one_shot_stills = 0;
+            cfg.one_shot_stills = 1;
             cfg.max_preview_video_w = info.max_width;
             cfg.max_preview_video_h = info.max_height;
             cfg.num_preview_video_frames = 1;
@@ -545,8 +555,10 @@ impl SeriousCamera {
                 return Ok(());
             }
 
-            let encoder_in_port_ptr = *(self.encoder.as_ref().input.offset(0) as *mut *mut ffi::MMAL_PORT_T);
-            let encoder_out_port_ptr = *(self.encoder.as_ref().output.offset(0) as *mut *mut ffi::MMAL_PORT_T);
+            let encoder_in_port_ptr =
+                *(self.encoder.as_ref().input.offset(0) as *mut *mut ffi::MMAL_PORT_T);
+            let encoder_out_port_ptr =
+                *(self.encoder.as_ref().output.offset(0) as *mut *mut ffi::MMAL_PORT_T);
             let encoder_in_port = *encoder_in_port_ptr;
             let mut encoder_out_port = *encoder_out_port_ptr;
 
@@ -576,7 +588,11 @@ impl SeriousCamera {
 
             if encoding == ffi::MMAL_ENCODING_JPEG || encoding == ffi::MMAL_ENCODING_MJPEG {
                 // Set the JPEG quality level
-                status = ffi::mmal_port_parameter_set_uint32(encoder_out_port_ptr, ffi::MMAL_PARAMETER_JPEG_Q_FACTOR, 90);
+                status = ffi::mmal_port_parameter_set_uint32(
+                    encoder_out_port_ptr,
+                    ffi::MMAL_PARAMETER_JPEG_Q_FACTOR,
+                    90,
+                );
                 if status != MMAL_STATUS_T::MMAL_SUCCESS {
                     return Err(CameraError::with_status(
                         "Unable to set JPEG quality",
@@ -585,7 +601,11 @@ impl SeriousCamera {
                 }
 
                 // Set the JPEG restart interval
-                status = ffi::mmal_port_parameter_set_uint32(encoder_out_port_ptr, ffi::MMAL_PARAMETER_JPEG_RESTART_INTERVAL, 0);
+                status = ffi::mmal_port_parameter_set_uint32(
+                    encoder_out_port_ptr,
+                    ffi::MMAL_PARAMETER_JPEG_RESTART_INTERVAL,
+                    0,
+                );
                 if status != MMAL_STATUS_T::MMAL_SUCCESS {
                     return Err(CameraError::with_status(
                         "Unable to set JPEG restart interval",
@@ -760,6 +780,16 @@ impl SeriousCamera {
                 ));
             }
 
+            if self.use_encoder {
+                if !self.encoder_output_port_enabled {
+                    self.enable_encoder_port().unwrap();
+                }
+            } else {
+                if !self.still_port_enabled {
+                    self.enable_still_port().unwrap();
+                }
+            }
+
             // Send all the buffers to the camera output port
             let num = ffi::mmal_queue_length(self.pool.as_ref().queue as *mut _);
             println!("got length {}", num);
@@ -770,13 +800,18 @@ impl SeriousCamera {
             let buffer_port_ptr;
 
             if self.use_encoder {
-                let encoder_out_port_ptr = *(self.encoder.as_ref().output as *mut *mut ffi::MMAL_PORT_T);
+                let encoder_out_port_ptr =
+                    *(self.encoder.as_ref().output as *mut *mut ffi::MMAL_PORT_T);
                 buffer_port_ptr = encoder_out_port_ptr;
             } else {
                 buffer_port_ptr = still_port_ptr;
             }
 
-            println!("assigning pool of {} buffers size {}", (*buffer_port_ptr).buffer_num, (*buffer_port_ptr).buffer_size);
+            println!(
+                "assigning pool of {} buffers size {}",
+                (*buffer_port_ptr).buffer_num,
+                (*buffer_port_ptr).buffer_size
+            );
 
             for i in 0..num {
                 let buffer = ffi::mmal_queue_get(self.pool.as_ref().queue);
@@ -1000,7 +1035,6 @@ impl SimpleCamera {
         )?;
         camera.enable_control_port(false)?;
 
-
         camera.enable()?;
         camera.enable_encoder()?; // only needed if processing image eg returning jpeg
         camera.create_pool()?;
@@ -1016,48 +1050,36 @@ impl SimpleCamera {
     pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
         let (sender, receiver) = mpsc::sync_channel(1);
 
+        let data = Arc::new(Mutex::new(Vec::new()));
+        let data2 = Arc::clone(&data);
+
         let cb = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
             if o.is_none() {
-                sender.send(None).unwrap();
+                sender.send(()).unwrap();
                 return;
             }
 
             let buf = o.unwrap();
             let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
 
-            sender.send(Some(Box::new(s.to_vec()))).unwrap();
+            let data = &mut *data2.lock().unwrap();
+            data.extend_from_slice(s);
         });
 
         unsafe {
             self.serious.set_buffer_callback(cb);
         }
 
-        if self.serious.use_encoder {
-            if !self.serious.encoder_output_port_enabled {
-                self.serious.enable_encoder_port().unwrap();
-            }
-        } else {
-            if !self.serious.still_port_enabled {
-                self.serious.enable_still_port().unwrap();
-            }
-        }
-
         self.serious
             .take()
             .map_err(|e| format!("take error: {}", e))?;
 
-        let mut c = Vec::new();
-        loop {
-            let mut b = receiver.recv().map_err(|_| "Could not receive buffer")?;
+        receiver.recv().map_err(|_| "Could not receive ok")?;
 
-            if b.is_none() {
-                if c.len() == 0 {
-                    return Err("Expected to receive some data".into());
-                }
-                return Ok(c);
-            }
-
-            c.extend(*b.unwrap());
-        }
+        let mutex = Arc::try_unwrap(data)
+            .map_err(|a| format!("{} strong references exist", Arc::strong_count(&a)))
+            .unwrap();
+        let b = mutex.into_inner().unwrap();
+        Ok(b)
     }
 }

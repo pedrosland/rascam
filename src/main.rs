@@ -17,9 +17,9 @@ fn main() {
     }
     println!("{}", info);
 
-    // bench_jpegs_per_sec(5);
+    bench_jpegs_per_sec(5);
 
-    // return;
+    return;
 
     if true {
         simple(&info.cameras[0]);
@@ -57,7 +57,13 @@ fn serious(info: &CameraInfo) {
    video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
   */
     camera
-        .set_camera_format(MMAL_ENCODING_RGB24, info.max_width, info.max_height, true, false)
+        .set_camera_format(
+            MMAL_ENCODING_RGB24,
+            info.max_width,
+            info.max_height,
+            true,
+            false,
+        )
         .unwrap();
     println!("set camera format");
     camera.enable().unwrap();
