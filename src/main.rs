@@ -131,7 +131,7 @@ pub fn bench_jpegs_per_sec(n: i32) {
 
     for _ in 0..n {
         let images = 20;
-        let (_, runtime) = time(|| bench_jpegs(20, &mut b));
+        let (_, runtime) = time(|| bench_jpegs(images, &mut b));
         let images_per_sec = images as f64 / runtime;
         println!(
             "{} images in {} sec, {:.2} images/sec",

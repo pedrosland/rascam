@@ -5,6 +5,7 @@ extern crate mmal_sys as ffi;
 use ffi::MMAL_STATUS_T;
 use std::fmt;
 use std::os::raw::c_char;
+use std::ffi::CStr;
 use std::mem;
 use std::ptr::Unique;
 use std::fs::File;
@@ -13,6 +14,9 @@ use std::string::String;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT};
 use std::sync::mpsc;
 use std::os::raw::c_uint;
+use std::ptr;
+use std::thread;
+use std::time;
 
 pub use error::CameraError;
 
@@ -118,9 +122,9 @@ pub fn info() -> Result<Info, CameraError> {
                                 max_width: cam.max_width,
                                 max_height: cam.max_height,
                                 lens_present: if cam.lens_present == 1 { true } else { false },
-                                camera_name: ::std::str::from_utf8(&cam.camera_name)
-                                    .unwrap()
-                                    .to_owned(),
+                                camera_name: CStr::from_ptr(cam.camera_name.as_ptr())
+                                    .to_string_lossy()
+                                    .into_owned(),
                             })
                             .collect();
 
@@ -331,13 +335,16 @@ impl SeriousCamera {
 
     pub unsafe fn set_buffer_callback(
         &mut self,
-        callback: Box<FnMut(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
+        callback: Option<Box<FnMut(Option<&ffi::MMAL_BUFFER_HEADER_T>)>>,
     ) {
-        let data = Box::new(Userdata {
-            pool: self.pool,
-            callback: callback,
-        });
-        let data_ptr = Box::into_raw(data);
+        let mut data_ptr = ptr::null();
+        if let Some(callback) = callback {
+            let data = Box::new(Userdata {
+                pool: self.pool,
+                callback: callback,
+            });
+            data_ptr = Box::into_raw(data);
+        }
         let port = if self.use_encoder {
             (*self.encoder.as_ref().output.offset(0))
         } else {
@@ -420,11 +427,8 @@ impl SeriousCamera {
             let still_port_ptr =
                 *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T);
             let preview_port = *preview_port_ptr;
-            mem::forget(preview_port);
             let mut video_port = *video_port_ptr;
-            mem::forget(video_port);
             let mut still_port = *still_port_ptr;
-            mem::forget(still_port);
 
             // On firmware prior to June 2016, camera and video_splitter
             // had BGR24 and RGB24 support reversed.
@@ -440,7 +444,6 @@ impl SeriousCamera {
             //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
             let mut format = preview_port.format;
-            mem::forget(format);
 
             if use_encoder {
                 (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
@@ -452,7 +455,6 @@ impl SeriousCamera {
             // (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
 
             let mut es = (*format).es;
-            mem::forget(es);
 
             // Use a full FOV 4:3 mode
             (*es).video.width = ffi::vcos_align_up(1024, 32);
@@ -489,7 +491,6 @@ impl SeriousCamera {
             }
 
             format = still_port.format;
-            mem::forget(format);
 
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L799
 
@@ -510,7 +511,6 @@ impl SeriousCamera {
 
             // es = elementary stream
             es = (*format).es;
-            mem::forget(es);
 
             (*es).video.width = ffi::vcos_align_up(width, 32);
             (*es).video.height = ffi::vcos_align_up(height, 16);
@@ -1054,20 +1054,23 @@ impl SimpleCamera {
         let data2 = Arc::clone(&data);
 
         let cb = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
+            // println!("cb o: {:?}", o.is_some());
             if o.is_none() {
                 sender.send(()).unwrap();
-                return;
+            } else {
+                let buf = o.unwrap();
+                let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
+
+                {
+                    let data = &mut *data2.lock().unwrap();
+                    data.extend_from_slice(s);
+                }
             }
-
-            let buf = o.unwrap();
-            let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
-
-            let data = &mut *data2.lock().unwrap();
-            data.extend_from_slice(s);
+            // println!("cb done");
         });
 
         unsafe {
-            self.serious.set_buffer_callback(cb);
+            self.serious.set_buffer_callback(Some(cb));
         }
 
         self.serious
@@ -1076,10 +1079,23 @@ impl SimpleCamera {
 
         receiver.recv().map_err(|_| "Could not receive ok")?;
 
+        unsafe {
+            self.serious.set_buffer_callback(None);
+        }
+
+        // :( we need this sleep at present.
+        // even with the lock below, we still can get an issue about 2x references to arc
+        let sleep_duration = time::Duration::from_millis(200);
+        thread::sleep(sleep_duration);
+
+        &mut *data.lock().unwrap();
+        // now that we have the lock, unwrap the arc
+
         let mutex = Arc::try_unwrap(data)
             .map_err(|a| format!("{} strong references exist", Arc::strong_count(&a)))
             .unwrap();
         let b = mutex.into_inner().unwrap();
+
         Ok(b)
     }
 }
