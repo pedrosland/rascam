@@ -18,17 +18,11 @@ fn main() {
     println!("{}", info);
 
     bench_jpegs_per_sec(5);
-
-    return;
-
-    if true {
-        simple(&info.cameras[0]);
-    } else {
-        serious(&info.cameras[0]);
-    }
+    // simple_sync(&info.cameras[0]);
+    // serious(&info.cameras[0]);
 }
 
-fn simple(info: &CameraInfo) {
+fn simple_sync(info: &CameraInfo) {
     let mut camera = SimpleCamera::new(info.clone()).unwrap();
     camera.activate().unwrap();
 

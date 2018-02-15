@@ -1,4 +1,5 @@
 #![feature(unique)]
+#![feature(ptr_internals)]
 extern crate libc;
 extern crate mmal_sys as ffi;
 // extern crate futures;
@@ -11,16 +12,14 @@ use std::ptr::Unique;
 use std::fs::File;
 use std::slice;
 use std::string::String;
-use std::sync::{Arc, Mutex, Once, ONCE_INIT};
+use std::sync::{Mutex, Once, ONCE_INIT};
 use std::sync::mpsc;
 use std::os::raw::c_uint;
 use std::ptr;
-use std::thread;
-use std::time;
-
-pub use error::CameraError;
 
 mod error;
+
+pub use error::CameraError;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -335,22 +334,26 @@ impl SeriousCamera {
 
     pub unsafe fn set_buffer_callback(
         &mut self,
-        callback: Option<Box<FnMut(Option<&ffi::MMAL_BUFFER_HEADER_T>)>>,
+        callback: Box<FnMut(Option<&ffi::MMAL_BUFFER_HEADER_T>)>,
     ) {
-        let mut data_ptr = ptr::null();
-        if let Some(callback) = callback {
-            let data = Box::new(Userdata {
-                pool: self.pool,
-                callback: callback,
-            });
-            data_ptr = Box::into_raw(data);
-        }
         let port = if self.use_encoder {
             (*self.encoder.as_ref().output.offset(0))
         } else {
             (*self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT))
         };
-        (*port).userdata = data_ptr as *mut ffi::MMAL_PORT_USERDATA_T;
+
+        let userdata = Userdata {
+            pool: self.pool,
+            callback: callback,
+        };
+
+        if (*port).userdata == ptr::null_mut() {
+            let data: Mutex<Userdata> = Mutex::new(userdata);
+            (*port).userdata = Box::into_raw(Box::new(data)) as *mut ffi::MMAL_PORT_USERDATA_T;
+        } else {
+            let mutex = &*((*port).userdata as *const Mutex<Userdata>);
+            *mutex.lock().unwrap() = userdata;
+        }
     }
 
     pub fn enable_still_port(&mut self) -> Result<u8, ffi::MMAL_STATUS_T::Type> {
@@ -868,18 +871,18 @@ unsafe extern "C" fn camera_buffer_callback(
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
 ) {
     let bytes_to_write = (*buffer).length;
+    let pdata_ptr: *mut Mutex<Userdata> = (*port).userdata as *mut Mutex<Userdata>;
     let mut complete = false;
 
     println!("I'm called from C. buffer length: {}", bytes_to_write);
 
-    let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
-    let pdata: &mut Userdata = &mut *pdata_ptr;
-
     if !pdata_ptr.is_null() {
+        let userdata: &mut Userdata = &mut *(*pdata_ptr).lock().unwrap();
         if bytes_to_write > 0 {
             ffi::mmal_buffer_header_mem_lock(buffer);
 
-            (pdata.callback)(Some(&mut *buffer));
+            let cb = &mut userdata.callback;
+            (cb)(Some(&mut *buffer));
 
             ffi::mmal_buffer_header_mem_unlock(buffer);
         }
@@ -898,26 +901,29 @@ unsafe extern "C" fn camera_buffer_callback(
     // release buffer back to the pool
     ffi::mmal_buffer_header_release(buffer);
 
-    // and send one back to the port (if still open)
-    if (*port).is_enabled > 0 && !pdata_ptr.is_null() {
-        let mut status: ffi::MMAL_STATUS_T::Type = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
-        let new_buffer: *mut ffi::MMAL_BUFFER_HEADER_T =
-            ffi::mmal_queue_get(pdata.pool.as_ref().queue);
+    if !pdata_ptr.is_null() {
+        let userdata: &mut Userdata = &mut *(*pdata_ptr).lock().unwrap();
 
-        // and back to the port from there.
-        if !new_buffer.is_null() {
-            status = ffi::mmal_port_send_buffer(port, new_buffer);
+        // and send one back to the port (if still open)
+        if (*port).is_enabled > 0 {
+            let mut status: ffi::MMAL_STATUS_T::Type = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
+            let new_buffer: *mut ffi::MMAL_BUFFER_HEADER_T =
+                ffi::mmal_queue_get(userdata.pool.as_ref().queue);
+
+            // and back to the port from there.
+            if !new_buffer.is_null() {
+                status = ffi::mmal_port_send_buffer(port, new_buffer);
+            }
+
+            if new_buffer.is_null() || status != MMAL_STATUS_T::MMAL_SUCCESS {
+                println!("Unable to return the buffer to the camera still port");
+            }
         }
 
-        if new_buffer.is_null() || status != MMAL_STATUS_T::MMAL_SUCCESS {
-            println!("Unable to return the buffer to the camera still port");
+        if complete {
+            println!("complete");
+            (userdata.callback)(None);
         }
-    }
-
-    if complete {
-        println!("complete");
-        (pdata.callback)(None);
-        Box::from_raw(pdata_ptr); // Allow rust to free this memory
     }
 
     println!("I'm done with c");
@@ -971,6 +977,19 @@ unsafe extern "C" fn camera_control_callback(
 impl Drop for SeriousCamera {
     fn drop(&mut self) {
         unsafe {
+            let port = if self.use_encoder {
+                (*self.encoder.as_ref().output.offset(0))
+            } else {
+                (*self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT))
+            };
+            if (*port).userdata != ptr::null_mut() {
+                let ptr = (*port).userdata;
+                let mutex = &mut *(ptr as *mut Mutex<Userdata>);
+                let _guard = Some(mutex.lock().unwrap());
+                (*port).userdata = ptr::null_mut() as *mut ffi::MMAL_PORT_USERDATA_T;
+                Box::from_raw(ptr);
+            }
+
             if self.connection_created {
                 ffi::mmal_connection_disable(self.connection.as_ptr());
                 ffi::mmal_connection_destroy(self.connection.as_ptr());
@@ -991,6 +1010,7 @@ impl Drop for SeriousCamera {
                 ffi::mmal_port_disable(self.camera.as_ref().control);
                 println!("port disabled");
             }
+
             ffi::mmal_component_destroy(self.camera.as_ptr());
             println!("camera destroyed");
             if self.encoder_created {
@@ -1048,54 +1068,30 @@ impl SimpleCamera {
     }
 
     pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
-        let (sender, receiver) = mpsc::sync_channel(1);
+        let (sender, receiver) = mpsc::sync_channel(0);
 
-        let data = Arc::new(Mutex::new(Vec::new()));
-        let data2 = Arc::clone(&data);
-
+        let mut v = Vec::new();
         let cb = Box::new(move |o: Option<&ffi::MMAL_BUFFER_HEADER_T>| {
-            // println!("cb o: {:?}", o.is_some());
             if o.is_none() {
-                sender.send(()).unwrap();
+                sender.send(v.clone()).unwrap();
             } else {
                 let buf = o.unwrap();
                 let s = unsafe { slice::from_raw_parts((*buf).data, (*buf).length as usize) };
 
-                {
-                    let data = &mut *data2.lock().unwrap();
-                    data.extend_from_slice(s);
-                }
+                v.extend_from_slice(s);
             }
-            // println!("cb done");
         });
 
         unsafe {
-            self.serious.set_buffer_callback(Some(cb));
+            self.serious.set_buffer_callback(cb);
         }
 
         self.serious
             .take()
             .map_err(|e| format!("take error: {}", e))?;
 
-        receiver.recv().map_err(|_| "Could not receive ok")?;
+        let v = receiver.recv().map_err(|_| "Could not receive ok")?;
 
-        unsafe {
-            self.serious.set_buffer_callback(None);
-        }
-
-        // :( we need this sleep at present.
-        // even with the lock below, we still can get an issue about 2x references to arc
-        let sleep_duration = time::Duration::from_millis(200);
-        thread::sleep(sleep_duration);
-
-        &mut *data.lock().unwrap();
-        // now that we have the lock, unwrap the arc
-
-        let mutex = Arc::try_unwrap(data)
-            .map_err(|a| format!("{} strong references exist", Arc::strong_count(&a)))
-            .unwrap();
-        let b = mutex.into_inner().unwrap();
-
-        Ok(b)
+        Ok(v)
     }
 }
