@@ -17,7 +17,7 @@ fn main() {
     }
     println!("{}", info);
 
-    bench_jpegs_per_sec(5);
+    bench_jpegs_per_sec(10);
     // simple_sync(&info.cameras[0]);
     // serious(&info.cameras[0]);
 }
@@ -124,7 +124,7 @@ pub fn bench_jpegs_per_sec(n: i32) {
     thread::sleep(sleep_duration);
 
     for _ in 0..n {
-        let images = 20;
+        let images = 30;
         let (_, runtime) = time(|| bench_jpegs(images, &mut b));
         let images_per_sec = images as f64 / runtime;
         println!(

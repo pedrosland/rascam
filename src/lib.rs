@@ -9,7 +9,6 @@ use std::os::raw::c_char;
 use std::ffi::CStr;
 use std::mem;
 use std::ptr::Unique;
-use std::fs::File;
 use std::slice;
 use std::string::String;
 use std::sync::{Mutex, Once, ONCE_INIT};
@@ -171,38 +170,12 @@ pub struct SeriousCamera {
     preview: Unique<ffi::MMAL_COMPONENT_T>,
     preview_created: bool,
 
-    file: File,
-    file_open: bool,
-    // FnOnce
-    // buffer_callback: Box<Fn(Option<&ffi::MMAL_BUFFER_HEADER_T>) + 'static>,
     use_encoder: bool,
 }
 
 impl SeriousCamera {
-    pub fn new() -> Result<SeriousCamera, ffi::MMAL_STATUS_T::Type> {
+    pub fn new() -> Result<SeriousCamera, CameraError> {
         init();
-        /*
-
-            component_type = mmal.MMAL_COMPONENT_DEFAULT_CAMERA
-        opaque_output_subformats = ('OPQV-single', 'OPQV-dual', 'OPQV-strips')
-
-        mmal.mmal_component_create(self.component_type, self._component),
-            prefix="Failed to create MMAL component %s" % self.component_type)
-            */
-
-        /* Useful if mmal_component_create were to take a pointer to a pointer for it to initialise the
- * struct
-
-       unsafe {
-           let mut pcamera: _MMAL_COMPONENT_T = mem::uninitialized();
-           let status = mmal_component_create(MMAL_COMPONENT::MMAL_COMPONENT_DEFAULT_CAMERA, &mut pcamera);
-           match status {
-               MMAL_STATUS_T::MMAL_SUCCESS => Ok(MMALCamera{ component: Unique::new(pcamera) }),
-               e => Err(e),
-           }
-       }
-*/
-
         unsafe {
             let mut camera_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
             let component: *const c_char =
@@ -226,11 +199,9 @@ impl SeriousCamera {
                     connection: mem::zeroed(),
                     preview_created: false,
                     preview: mem::zeroed(),
-                    file: mem::uninitialized(),
-                    file_open: false,
                     use_encoder: false,
                 }),
-                e => Err(e),
+                s => Err(CameraError::with_status("Could not create camera", s)),
             }
         }
     }
@@ -1027,7 +998,7 @@ pub struct SimpleCamera {
 }
 
 impl SimpleCamera {
-    pub fn new(info: CameraInfo) -> Result<SimpleCamera, u32> {
+    pub fn new(info: CameraInfo) -> Result<SimpleCamera, CameraError> {
         let sc = SeriousCamera::new()?;
 
         Ok(SimpleCamera {
@@ -1067,7 +1038,7 @@ impl SimpleCamera {
         Ok(())
     }
 
-    pub fn take_one(&mut self) -> Result<Vec<u8>, String> {
+    pub fn take_one(&mut self) -> Result<Vec<u8>, CameraError> {
         let (sender, receiver) = mpsc::sync_channel(0);
 
         let mut v = Vec::new();
@@ -1086,11 +1057,14 @@ impl SimpleCamera {
             self.serious.set_buffer_callback(cb);
         }
 
-        self.serious
-            .take()
-            .map_err(|e| format!("take error: {}", e))?;
+        self.serious.take()?;
 
-        let v = receiver.recv().map_err(|_| "Could not receive ok")?;
+        let v = receiver.recv().map_err(|_| {
+            CameraError::with_status(
+                "Could not receive from camera: {}",
+                ffi::MMAL_STATUS_T::MMAL_STATUS_MAX,
+            )
+        })?;
 
         Ok(v)
     }
