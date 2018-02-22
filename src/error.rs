@@ -31,9 +31,8 @@ impl MmalError {
 #[test]
 fn test_camera_error_status() {
     let mut err = MmalError {
-        message: "testing",
+        message: "testing".to_string(),
         status_code: 0,
-        cause: None,
     };
 
     {

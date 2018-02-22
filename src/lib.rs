@@ -18,7 +18,7 @@ use std::cell::UnsafeCell;
 
 mod error;
 
-pub use error::{MmalError, CameraError};
+pub use error::{CameraError, MmalError};
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -132,14 +132,16 @@ pub fn info() -> Result<Info, CameraError> {
                     }
                     s => {
                         ffi::mmal_component_destroy(component);
-                        Err(MmalError::with_status("Failed to get camera info".to_owned(), s).into())
+                        Err(
+                            MmalError::with_status("Failed to get camera info".to_owned(), s)
+                                .into(),
+                        )
                     }
                 }
             }
-            s => Err(MmalError::with_status(
-                "Failed to create camera component".to_owned(),
-                s,
-            ).into()),
+            s => Err(
+                MmalError::with_status("Failed to create camera component".to_owned(), s).into(),
+            ),
         }
     }
 }
@@ -288,7 +290,9 @@ impl SeriousCamera {
             let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut param.hdr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
-                s => Err(MmalError::with_status("Unable to set camera number".to_owned(), s).into()),
+                s => {
+                    Err(MmalError::with_status("Unable to set camera number".to_owned(), s).into())
+                }
             }
         }
     }
@@ -354,7 +358,9 @@ impl SeriousCamera {
                     self.camera_port_enabled = true;
                     Ok(())
                 }
-                s => Err(MmalError::with_status("Unable to enable control port".to_owned(), s).into()),
+                s => Err(
+                    MmalError::with_status("Unable to enable control port".to_owned(), s).into(),
+                ),
             }
         }
     }
@@ -370,7 +376,9 @@ impl SeriousCamera {
                     self.encoder_output_port_enabled = true;
                     Ok(())
                 }
-                s => Err(MmalError::with_status("Unable to enable encoder port".to_owned(), s).into()),
+                s => Err(
+                    MmalError::with_status("Unable to enable encoder port".to_owned(), s).into(),
+                ),
             }
         }
     }
@@ -457,11 +465,7 @@ impl SeriousCamera {
 
             let output = self.camera.as_ref().output;
             let output_num = self.camera.as_ref().output_num;
-            assert_eq!(
-                output_num,
-                3,
-                "Expected camera to have 3 outputs"
-            );
+            assert_eq!(output_num, 3, "Expected camera to have 3 outputs");
 
             let preview_port_ptr =
                 *(output.offset(MMAL_CAMERA_PREVIEW_PORT) as *mut *mut ffi::MMAL_PORT_T);
@@ -672,10 +676,10 @@ impl SeriousCamera {
                     self.enabled = true;
                     Ok(())
                 }
-                s => Err(MmalError::with_status(
-                    "Unable to enable camera component".to_owned(),
-                    s,
-                ).into()),
+                s => Err(
+                    MmalError::with_status("Unable to enable camera component".to_owned(), s)
+                        .into(),
+                ),
             }
         }
     }
@@ -741,8 +745,7 @@ impl SeriousCamera {
                 Err(MmalError::with_status(
                     format!(
                         "Failed to create buffer header pool for camera port {}",
-                        CStr::from_ptr((*port_ptr).name)
-                            .to_string_lossy()
+                        CStr::from_ptr((*port_ptr).name).to_string_lossy()
                     ),
                     MMAL_STATUS_T::MMAL_STATUS_MAX, // there is no status here unusually
                 ).into())
@@ -801,10 +804,9 @@ impl SeriousCamera {
                     // self.preview_created = true;
                     Ok(())
                 }
-                s => Err(MmalError::with_status(
-                    "Unable to connect preview ports".to_owned(),
-                    s,
-                ).into()),
+                s => Err(
+                    MmalError::with_status("Unable to connect preview ports".to_owned(), s).into(),
+                ),
             }
         }
     }
@@ -866,20 +868,14 @@ impl SeriousCamera {
 
                 if buffer.is_null() {
                     return Err(MmalError::with_status(
-                        format!(
-                            "Unable to get a required buffer {} from pool queue",
-                            i
-                        ),
+                        format!("Unable to get a required buffer {} from pool queue", i),
                         MMAL_STATUS_T::MMAL_STATUS_MAX,
                     ).into());
                 } else {
                     status = ffi::mmal_port_send_buffer(buffer_port_ptr, buffer);
                     if status != MMAL_STATUS_T::MMAL_SUCCESS {
                         return Err(MmalError::with_status(
-                            format!(
-                                "Unable to send a buffer to camera output port ({})",
-                                i
-                            ),
+                            format!("Unable to send a buffer to camera output port ({})", i),
                             status,
                         ).into());
                     }
