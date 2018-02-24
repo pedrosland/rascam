@@ -11,3 +11,6 @@ futures = "0.1"
 [[bin]]
 name = "test"
 path = "src/main.rs"
+
+[profile.dev]
+# opt-level = 3

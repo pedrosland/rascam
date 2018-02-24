@@ -17,8 +17,8 @@ fn main() {
     }
     println!("{}", info);
 
-    bench_jpegs_per_sec(10);
-    // simple_sync(&info.cameras[0]);
+    // bench_jpegs_per_sec(10);
+    simple_sync(&info.cameras[0]);
     // serious(&info.cameras[0]);
 }
 
@@ -30,7 +30,7 @@ fn simple_sync(info: &CameraInfo) {
     thread::sleep(sleep_duration);
 
     let b = camera.take_one().unwrap();
-    File::create("image1.rgb").unwrap().write_all(&b).unwrap();
+    File::create("image1.jpg").unwrap().write_all(&b).unwrap();
 }
 
 fn serious(info: &CameraInfo) {
