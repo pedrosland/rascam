@@ -8,6 +8,7 @@
 #![feature(ptr_internals)]
 extern crate libc;
 extern crate mmal_sys as ffi;
+extern crate parking_lot;
 // extern crate futures;
 use ffi::MMAL_STATUS_T;
 use std::fmt;
@@ -17,10 +18,10 @@ use std::mem;
 use std::ptr::NonNull;
 use std::slice;
 use std::string::String;
-use std::sync::{Mutex, MutexGuard, Once, ONCE_INIT};
+use std::sync::{Arc, Once, ONCE_INIT};
 use std::sync::mpsc;
 use std::ptr;
-use std::cell::UnsafeCell;
+use parking_lot::Mutex;
 
 mod error;
 mod settings;
@@ -161,9 +162,9 @@ pub fn info() -> Result<Info, CameraError> {
     }
 }
 
-struct Userdata<'a> {
+struct Userdata {
     pool: NonNull<ffi::MMAL_POOL_T>,
-    _guard: MutexGuard<'a, ()>,
+    _guard: Arc<Mutex<()>>,
     sender: mpsc::SyncSender<Option<BufferGuard>>,
 }
 
@@ -255,7 +256,7 @@ pub struct SeriousCamera {
     camera_port_enabled: bool,
     still_port_enabled: bool,
     pool: Option<NonNull<ffi::MMAL_POOL_T>>,
-    mutex: UnsafeCell<Mutex<()>>,
+    mutex: Arc<Mutex<()>>,
 
     encoder: Option<NonNull<ffi::MMAL_COMPONENT_T>>,
     encoder_created: bool,
@@ -286,7 +287,7 @@ impl SeriousCamera {
                     enabled: false,
                     camera_port_enabled: false,
                     pool: None,
-                    mutex: UnsafeCell::new(Mutex::new(())),
+                    mutex: Arc::new(Mutex::new(())),
                     still_port_enabled: false,
                     // this is really a hack. ideally these objects wouldn't be structured this way
                     encoder_created: false,
@@ -411,7 +412,6 @@ impl SeriousCamera {
     pub unsafe fn set_buffer_callback(
         &mut self,
         sender: mpsc::SyncSender<Option<BufferGuard>>,
-        guard: MutexGuard<()>,
     ) {
         let port = if self.use_encoder {
             (*self.encoder.unwrap().as_ref().output.offset(0))
@@ -422,7 +422,7 @@ impl SeriousCamera {
         let userdata = Userdata {
             pool: self.pool.unwrap(),
             sender: sender,
-            _guard: guard,
+            _guard: Arc::clone(&self.mutex),
         };
 
         if (*port).userdata != ptr::null_mut() {
@@ -834,8 +834,7 @@ impl SeriousCamera {
     }
 
     pub fn take(&mut self) -> Result<mpsc::Receiver<Option<BufferGuard>>, CameraError> {
-        let mutex = unsafe { &*self.mutex.get() };
-        let guard = mutex.lock().unwrap();
+        self.mutex.raw_lock();
         let buffer_port_ptr;
 
         unsafe {
@@ -906,7 +905,7 @@ impl SeriousCamera {
 
             let (sender, receiver) = mpsc::sync_channel(0);
 
-            self.set_buffer_callback(sender, guard);
+            self.set_buffer_callback(sender);
 
             status = ffi::mmal_port_parameter_set_boolean(
                 still_port_ptr,
@@ -1035,7 +1034,7 @@ unsafe extern "C" fn camera_control_callback(
 impl Drop for SeriousCamera {
     fn drop(&mut self) {
         unsafe {
-            let _guard = (*self.mutex.get()).lock().unwrap();
+            let _guard = self.mutex.lock();
 
             if self.connection_created {
                 ffi::mmal_connection_disable(self.connection.unwrap().as_ptr());
@@ -1182,6 +1181,7 @@ impl SimpleCamera {
 pub fn drop_port_userdata(port: *mut ffi::MMAL_PORT_T) {
     unsafe {
         let userdata: Box<Userdata> = Box::from_raw((*port).userdata as *mut Userdata);
+        userdata._guard.raw_unlock();
         drop(userdata);
         (*port).userdata = ptr::null_mut() as *mut ffi::MMAL_PORT_USERDATA_T;
     }
