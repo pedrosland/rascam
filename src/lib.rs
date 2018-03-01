@@ -1,3 +1,10 @@
+//! Access the native Raspberry Pi camera.
+//!
+//! This module uses the MMAL library ([mmal-sys]) to access the Raspberry Pi's camera
+//! in a friendly way.
+//!
+//! [mmal-sys]: https://crates.io/crates/mmal-sys
+
 #![feature(ptr_internals)]
 extern crate libc;
 extern crate mmal_sys as ffi;
@@ -41,12 +48,14 @@ pub use ffi::MMAL_ENCODING_RGB24;
 
 // type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
 
+/// Contains information about attached cameras.
 pub struct Info {
     pub cameras: Vec<CameraInfo>,
     // TODO: flashes?
 }
 
 impl fmt::Display for Info {
+    /// Pretty prints a list of attached cameras.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Found {} camera(s)", self.cameras.len()).unwrap();
 
@@ -60,6 +69,9 @@ impl fmt::Display for Info {
     }
 }
 
+/// Information about an attached camera. Created by the [`info`] function.
+///
+/// [`info`]: info()
 #[derive(Clone, Debug)]
 pub struct CameraInfo {
     pub port_id: u32,
@@ -70,6 +82,7 @@ pub struct CameraInfo {
 }
 
 impl fmt::Display for CameraInfo {
+    /// Pretty prints this camera's name and its max resolution.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -79,11 +92,11 @@ impl fmt::Display for CameraInfo {
     }
 }
 
-// This function must be called before any mmal work. Failure to do so will cause errors like:
-//
-// mmal: mmal_component_create_core: could not find component 'vc.camera_info'
-//
-// See this for more info https://github.com/thaytan/gst-rpicamsrc/issues/28
+/// This function must be called before any mmal work. Failure to do so will cause errors like:
+///
+/// mmal: mmal_component_create_core: could not find component 'vc.camera_info'
+///
+/// See this for more info https://github.com/thaytan/gst-rpicamsrc/issues/28
 fn init() {
     static INIT: Once = ONCE_INIT;
     INIT.call_once(|| unsafe {
@@ -93,6 +106,7 @@ fn init() {
     });
 }
 
+/// Retrieves info on attached cameras
 pub fn info() -> Result<Info, CameraError> {
     init();
 
@@ -152,6 +166,9 @@ struct Userdata<'a> {
     sender: mpsc::SyncSender<Option<BufferGuard>>,
 }
 
+/// Guard around a buffer header.
+///
+/// Releases buffer header when it is dropped.
 #[derive(Debug)]
 pub struct BufferGuard {
     port: *mut ffi::MMAL_PORT_T,
@@ -175,10 +192,15 @@ impl BufferGuard {
         }
     }
 
+    /// Indicates if an image has been captured and this is the end of the image.
     pub fn is_complete(&self) -> bool {
         return self.complete;
     }
 
+    /// Creates a slice representing the raw bytes of the image.
+    ///
+    /// The data buffer is owned by the camera and must be copied to keep it around after the
+    /// BufferGuard is dropped.
     pub fn get_bytes(&self) -> &[u8] {
         unsafe {
             let buffer = *self.buffer;
@@ -191,6 +213,8 @@ impl BufferGuard {
 }
 
 impl Drop for BufferGuard {
+    /// Unlocks and releases the buffer header. Gets new buffer from pool and passes it to
+    /// the camera.
     fn drop(&mut self) {
         unsafe {
             ffi::mmal_buffer_header_mem_unlock(self.buffer);
@@ -1046,6 +1070,26 @@ impl Drop for SeriousCamera {
     }
 }
 
+/// A simple camera interface for the Raspberry Pi
+///
+/// # Examples
+///
+/// ```
+/// use cam::SimpleCamera;
+/// use std::fs::File;
+/// use std::io::Write;
+/// use std::{thread, time};
+///
+/// let info = cam::info().unwrap();
+/// let mut camera = SimpleCamera::new(info.cameras[0].clone()).unwrap();
+/// camera.activate().unwrap();
+///
+/// let sleep_duration = time::Duration::from_millis(2000);
+/// thread::sleep(sleep_duration);
+///
+/// let b = camera.take_one().unwrap();
+/// File::create("image1.jpg").unwrap().write_all(&b).unwrap();
+/// ```
 pub struct SimpleCamera {
     info: CameraInfo,
     serious: SeriousCamera,

@@ -6,6 +6,7 @@ use std::sync::mpsc;
 use std::io;
 use std::convert::From;
 
+/// Represents an error from the MMAL library.
 pub struct MmalError {
     message: String,
     status_code: MMAL_STATUS_T::Type,
@@ -92,6 +93,7 @@ impl fmt::Debug for MmalError {
     }
 }
 
+/// Represents any error returned when calling a camera function.
 #[derive(Debug)]
 pub struct CameraError(Box<ErrorKind>);
 
