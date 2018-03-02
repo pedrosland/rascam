@@ -50,15 +50,15 @@ fn serious(info: &CameraInfo) {
    if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
    video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
   */
-    camera
-        .set_camera_format(
-            MMAL_ENCODING_RGB24,
-            info.max_width,
-            info.max_height,
-            true,
-            false,
-        )
-        .unwrap();
+    let settings = CameraSettings {
+        encoding: MMAL_ENCODING_RGB24,
+        width: info.max_width,
+        height: info.max_height,
+        zero_copy: true,
+        use_encoder: false,
+    };
+
+    camera.set_camera_format(&settings).unwrap();
     println!("set camera format");
     camera.enable().unwrap();
     println!("camera enabled");

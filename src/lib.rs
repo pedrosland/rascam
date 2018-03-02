@@ -19,13 +19,14 @@ use std::slice;
 use std::string::String;
 use std::sync::{Mutex, MutexGuard, Once, ONCE_INIT};
 use std::sync::mpsc;
-use std::os::raw::c_uint;
 use std::ptr;
 use std::cell::UnsafeCell;
 
 mod error;
+mod settings;
 
 pub use error::{CameraError, MmalError};
+pub use settings::CameraSettings;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -476,16 +477,10 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_format(
-        &mut self,
-        mut encoding: c_uint,
-        width: u32,
-        height: u32,
-        zero_copy: bool,
-        use_encoder: bool,
-    ) -> Result<(), CameraError> {
+    pub fn set_camera_format(&mut self, settings: &CameraSettings) -> Result<(), CameraError> {
         unsafe {
-            self.use_encoder = use_encoder;
+            self.use_encoder = settings.use_encoder;
+            let mut encoding = settings.encoding;
 
             let output = self.camera.as_ref().output;
             let output_num = self.camera.as_ref().output_num;
@@ -516,7 +511,7 @@ impl SeriousCamera {
 
             let mut format = preview_port.format;
 
-            if use_encoder {
+            if self.use_encoder {
                 (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
             } else {
                 (*format).encoding = encoding;
@@ -565,7 +560,7 @@ impl SeriousCamera {
 
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L799
 
-            if use_encoder {
+            if self.use_encoder {
                 (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
             } else {
                 (*format).encoding = encoding;
@@ -583,12 +578,12 @@ impl SeriousCamera {
             // es = elementary stream
             es = (*format).es;
 
-            (*es).video.width = ffi::vcos_align_up(width, 32);
-            (*es).video.height = ffi::vcos_align_up(height, 16);
+            (*es).video.width = ffi::vcos_align_up(settings.width, 32);
+            (*es).video.height = ffi::vcos_align_up(settings.height, 16);
             (*es).video.crop.x = 0;
             (*es).video.crop.y = 0;
-            (*es).video.crop.width = width as i32;
-            (*es).video.crop.height = height as i32;
+            (*es).video.crop.width = settings.width as i32;
+            (*es).video.crop.height = settings.height as i32;
             (*es).video.frame_rate.num = 0; //STILLS_FRAME_RATE_NUM;
             (*es).video.frame_rate.den = 1; //STILLS_FRAME_RATE_DEN;
 
@@ -599,19 +594,22 @@ impl SeriousCamera {
 
             still_port.buffer_num = still_port.buffer_num_recommended;
 
-            if zero_copy {
-                status = ffi::mmal_port_parameter_set_boolean(
-                    video_port_ptr,
-                    ffi::MMAL_PARAMETER_ZERO_COPY as u32,
-                    ffi::MMAL_TRUE as i32,
-                );
+            let enable_zero_copy = if settings.zero_copy {
+                ffi::MMAL_TRUE
+            } else {
+                ffi::MMAL_FALSE
+            };
+            status = ffi::mmal_port_parameter_set_boolean(
+                video_port_ptr,
+                ffi::MMAL_PARAMETER_ZERO_COPY as u32,
+                enable_zero_copy as i32,
+            );
 
-                if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                    return Err(MmalError::with_status(
-                        "Unable to enable zero copy".to_owned(),
-                        status,
-                    ).into());
-                }
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    format!("Unable to set zero copy to {}", settings.zero_copy),
+                    status,
+                ).into());
             }
 
             status = ffi::mmal_port_format_commit(still_port_ptr);
@@ -622,7 +620,7 @@ impl SeriousCamera {
                 ).into());
             }
 
-            if !use_encoder {
+            if !self.use_encoder {
                 return Ok(());
             }
 
@@ -1093,6 +1091,7 @@ impl Drop for SeriousCamera {
 pub struct SimpleCamera {
     info: CameraInfo,
     serious: SeriousCamera,
+    settings: Option<CameraSettings>,
 }
 
 impl SimpleCamera {
@@ -1102,10 +1101,26 @@ impl SimpleCamera {
         Ok(SimpleCamera {
             info: info,
             serious: sc,
+            settings: None,
         })
     }
 
+    pub fn configure(&mut self, mut settings: CameraSettings) {
+        if settings.width == 0 {
+            settings.width = self.info.max_width;
+        }
+        if settings.height == 0 {
+            settings.height = self.info.max_height;
+        }
+
+        self.settings = Some(settings);
+    }
+
     pub fn activate(&mut self) -> Result<(), CameraError> {
+        if self.settings.is_none() {
+            self.configure(CameraSettings::default());
+        }
+        let settings = self.settings.as_ref().unwrap();
         let camera = &mut self.serious;
 
         camera.set_camera_num(0)?;
@@ -1115,13 +1130,7 @@ impl SimpleCamera {
         camera.create_preview()?;
 
         // camera.set_camera_format(ffi::MMAL_ENCODING_JPEG, self.info.max_width, self.info.max_height, false)?;
-        camera.set_camera_format(
-            ffi::MMAL_ENCODING_JPEG,
-            self.info.max_width,
-            self.info.max_height,
-            false,
-            true,
-        )?;
+        camera.set_camera_format(settings)?;
         camera.enable_control_port(false)?;
 
         camera.enable()?;
