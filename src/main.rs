@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //use cv::*;
 // use futures::Future;
 extern crate cam;
@@ -97,7 +99,7 @@ fn serious(info: &CameraInfo) {
 // Benchmarking from https://github.com/seenaburns/raytracer/blob/master/src/bench.rs
 
 // Run function and return result with seconds duration
-pub fn time<F, T>(f: F) -> (T, f64)
+fn time<F, T>(f: F) -> (T, f64)
 where
     F: FnOnce() -> T,
 {
@@ -111,7 +113,7 @@ where
 }
 
 // Prints iteration execution time and average
-pub fn bench_jpegs_per_sec(n: i32) {
+fn bench_jpegs_per_sec(n: i32) {
     let mut runs: Vec<f64> = Vec::with_capacity(n as usize);
 
     let info = info().unwrap();
@@ -140,7 +142,7 @@ pub fn bench_jpegs_per_sec(n: i32) {
     );
 }
 
-pub fn bench_jpegs(n: i32, camera: &mut Box<SimpleCamera>) {
+fn bench_jpegs(n: i32, camera: &mut Box<SimpleCamera>) {
     for _ in 0..n {
         camera.take_one().unwrap();
     }

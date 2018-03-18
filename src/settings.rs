@@ -5,12 +5,17 @@ use std::os::raw::c_uint;
 /// Settings for the camera.
 ///
 /// ```
+/// # use cam::{CameraError, CameraSettings, SimpleCamera};
+/// #
+/// # let info = cam::info().unwrap().cameras[0].clone();
+/// # let mut camera = SimpleCamera::new(info.clone()).unwrap();
+/// #
 /// let settings = CameraSettings{
-///     width: self.info.max_width,
-///     height: self.info.max_height,
+///     width: info.max_width,
+///     height: info.max_height,
 ///     ..CameraSettings::default()
 /// };
-/// camera.set_camera_format(&settings)?;
+/// camera.configure(settings);
 /// ```
 pub struct CameraSettings {
     pub encoding: c_uint,
