@@ -8,6 +8,7 @@ mmal-sys = { path = "mmal-sys" }
 libc = "0.2"
 futures = "0.1"
 parking_lot = {version = "0.5", features = ["nightly"]}
+scopeguard = "0.3.3"
 
 [[bin]]
 name = "test"

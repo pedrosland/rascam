@@ -9,6 +9,8 @@
 extern crate libc;
 extern crate mmal_sys as ffi;
 extern crate parking_lot;
+#[macro_use(defer_on_unwind)]
+extern crate scopeguard;
 // extern crate futures;
 use ffi::MMAL_STATUS_T;
 use std::fmt;
@@ -409,10 +411,7 @@ impl SeriousCamera {
         }
     }
 
-    pub unsafe fn set_buffer_callback(
-        &mut self,
-        sender: mpsc::SyncSender<Option<BufferGuard>>,
-    ) {
+    pub unsafe fn set_buffer_callback(&mut self, sender: mpsc::SyncSender<Option<BufferGuard>>) {
         let port = if self.use_encoder {
             (*self.encoder.unwrap().as_ref().output.offset(0))
         } else {
@@ -833,10 +832,46 @@ impl SeriousCamera {
         }
     }
 
-    pub fn take(&mut self) -> Result<mpsc::Receiver<Option<BufferGuard>>, CameraError> {
-        self.mutex.raw_lock();
-        let buffer_port_ptr;
+    unsafe fn send_buffers(
+        &mut self,
+        buffer_port_ptr: *mut ffi::MMAL_PORT_T,
+    ) -> Result<(), CameraError> {
+        let num = ffi::mmal_queue_length(self.pool.unwrap().as_ref().queue as *mut _);
+        println!("got length {}", num);
 
+        println!(
+            "assigning pool of {} buffers size {}",
+            (*buffer_port_ptr).buffer_num,
+            (*buffer_port_ptr).buffer_size
+        );
+
+        for i in 0..num {
+            let buffer = ffi::mmal_queue_get(self.pool.unwrap().as_ref().queue);
+            println!("got buffer {}", i);
+
+            if buffer.is_null() {
+                return Err(MmalError::with_status(
+                    format!("Unable to get a required buffer {} from pool queue", i),
+                    MMAL_STATUS_T::MMAL_STATUS_MAX,
+                ).into());
+            } else {
+                let status = ffi::mmal_port_send_buffer(buffer_port_ptr, buffer);
+                if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    return Err(MmalError::with_status(
+                        format!("Unable to send a buffer to camera output port ({})", i),
+                        status,
+                    ).into());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn do_take(
+        &mut self,
+        buffer_port_ptr: &mut *mut ffi::MMAL_PORT_T,
+    ) -> Result<mpsc::Receiver<Option<BufferGuard>>, CameraError> {
         unsafe {
             let mut status = ffi::mmal_port_parameter_set_uint32(
                 self.camera.as_ref().control,
@@ -861,9 +896,6 @@ impl SeriousCamera {
                 }
             }
 
-            // Send all the buffers to the camera output port
-            let num = ffi::mmal_queue_length(self.pool.unwrap().as_ref().queue as *mut _);
-            println!("got length {}", num);
             let output = self.camera.as_ref().output;
 
             let still_port_ptr =
@@ -872,36 +904,13 @@ impl SeriousCamera {
             if self.use_encoder {
                 let encoder_out_port_ptr =
                     *(self.encoder.unwrap().as_ref().output as *mut *mut ffi::MMAL_PORT_T);
-                buffer_port_ptr = encoder_out_port_ptr;
+                *buffer_port_ptr = encoder_out_port_ptr;
             } else {
-                buffer_port_ptr = still_port_ptr;
+                *buffer_port_ptr = still_port_ptr;
             }
 
-            println!(
-                "assigning pool of {} buffers size {}",
-                (*buffer_port_ptr).buffer_num,
-                (*buffer_port_ptr).buffer_size
-            );
-
-            for i in 0..num {
-                let buffer = ffi::mmal_queue_get(self.pool.unwrap().as_ref().queue);
-                println!("got buffer {}", i);
-
-                if buffer.is_null() {
-                    return Err(MmalError::with_status(
-                        format!("Unable to get a required buffer {} from pool queue", i),
-                        MMAL_STATUS_T::MMAL_STATUS_MAX,
-                    ).into());
-                } else {
-                    status = ffi::mmal_port_send_buffer(buffer_port_ptr, buffer);
-                    if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                        return Err(MmalError::with_status(
-                            format!("Unable to send a buffer to camera output port ({})", i),
-                            status,
-                        ).into());
-                    }
-                }
-            }
+            // Send all the buffers to the camera output port
+            self.send_buffers(*buffer_port_ptr)?;
 
             let (sender, receiver) = mpsc::sync_channel(0);
 
@@ -928,13 +937,26 @@ impl SeriousCamera {
                     s,
                 ).into()),
             }
-        }.map_err(|e| {
+        }
+    }
+
+    pub fn take(&mut self) -> Result<mpsc::Receiver<Option<BufferGuard>>, CameraError> {
+        self.mutex.raw_lock();
+        let mut buffer_port_ptr = ptr::null_mut();
+        let mutex = Arc::clone(&self.mutex);
+
+        defer_on_unwind!{{
+            unsafe { mutex.raw_unlock() };
+        }}
+
+        self.do_take(&mut buffer_port_ptr).map_err(|e| {
             unsafe {
                 if buffer_port_ptr != ptr::null_mut()
                     && (*buffer_port_ptr).userdata != ptr::null_mut()
                 {
                     drop_port_userdata(buffer_port_ptr);
                 }
+                self.mutex.raw_unlock();
             }
             e
         })
