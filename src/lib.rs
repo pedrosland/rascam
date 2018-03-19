@@ -237,6 +237,7 @@ impl Drop for BufferGuard {
                 }
 
                 if new_buffer.is_null() || status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    #[cfg(feature = "debug")]
                     println!("Unable to return the buffer to the port");
                 }
             }
@@ -245,6 +246,7 @@ impl Drop for BufferGuard {
                 if (*self.port).userdata != ptr::null_mut() {
                     drop_port_userdata(self.port);
                 }
+                #[cfg(feature = "debug")]
                 println!("complete");
             }
         }
@@ -837,8 +839,10 @@ impl SeriousCamera {
         buffer_port_ptr: *mut ffi::MMAL_PORT_T,
     ) -> Result<(), CameraError> {
         let num = ffi::mmal_queue_length(self.pool.unwrap().as_ref().queue as *mut _);
+        #[cfg(feature = "debug")]
         println!("got length {}", num);
 
+        #[cfg(feature = "debug")]
         println!(
             "assigning pool of {} buffers size {}",
             (*buffer_port_ptr).buffer_num,
@@ -847,6 +851,7 @@ impl SeriousCamera {
 
         for i in 0..num {
             let buffer = ffi::mmal_queue_get(self.pool.unwrap().as_ref().queue);
+            #[cfg(feature = "debug")]
             println!("got buffer {}", i);
 
             if buffer.is_null() {
@@ -928,6 +933,7 @@ impl SeriousCamera {
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
+                    #[cfg(feature = "debug")]
                     println!("Started capture");
 
                     Ok(receiver)
@@ -971,6 +977,7 @@ unsafe extern "C" fn camera_buffer_callback(
     let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
     let mut complete = false;
 
+    #[cfg(feature = "debug")]
     println!("I'm called from C. buffer length: {}", bytes_to_write);
 
     if !pdata_ptr.is_null() {
@@ -997,15 +1004,15 @@ unsafe extern "C" fn camera_buffer_callback(
                 )))
                 .unwrap();
         } else {
-            if let Err(err) = userdata.sender.send(None) {
-                println!("Got err sending None: {}", err);
+            if let Err(_err) = userdata.sender.send(None) {
+                #[cfg(feature = "debug")]
+                println!("Got err sending None: {}", _err);
             }
         }
     } else {
+        #[cfg(feature = "debug")]
         println!("Received a camera still buffer callback with no state");
     }
-
-    // println!("I'm done with c");
 }
 
 unsafe extern "C" fn camera_control_callback(
@@ -1014,6 +1021,7 @@ unsafe extern "C" fn camera_control_callback(
 ) {
     // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L525
 
+    #[cfg(feature = "debug")]
     println!("Camera control callback  cmd=0x{:08x}", (*buffer).cmd);
 
     if (*buffer).cmd == ffi::MMAL_EVENT_PARAMETER_CHANGED {
@@ -1022,28 +1030,32 @@ unsafe extern "C" fn camera_control_callback(
         if (*param).hdr.id == (ffi::MMAL_PARAMETER_CAMERA_SETTINGS as u32) {
             let settings_ptr: *mut ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T =
                 param as *mut ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T;
-            let settings: ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T = *settings_ptr;
+            let _settings: ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T = *settings_ptr;
+            #[cfg(feature = "debug")]
             println!(
                 "Exposure now {}, analog gain {}/{}, digital gain {}/{}",
-                settings.exposure,
-                settings.analog_gain.num,
-                settings.analog_gain.den,
-                settings.digital_gain.num,
-                settings.digital_gain.den
+                _settings.exposure,
+                _settings.analog_gain.num,
+                _settings.analog_gain.den,
+                _settings.digital_gain.num,
+                _settings.digital_gain.den
             );
+            #[cfg(feature = "debug")]
             println!(
                 "AWB R={}/{}, B={}/{}",
-                settings.awb_red_gain.num,
-                settings.awb_red_gain.den,
-                settings.awb_blue_gain.num,
-                settings.awb_blue_gain.den
+                _settings.awb_red_gain.num,
+                _settings.awb_red_gain.den,
+                _settings.awb_blue_gain.num,
+                _settings.awb_blue_gain.den
             );
         }
     } else if (*buffer).cmd == ffi::MMAL_EVENT_ERROR {
+        #[cfg(feature = "debug")]
         println!(
             "No data received from sensor. Check all connections, including the Sunny one on the camera board"
         );
     } else {
+        #[cfg(feature = "debug")]
         println!(
             "Received unexpected camera control callback event, {:08x}",
             (*buffer).cmd
@@ -1064,25 +1076,31 @@ impl Drop for SeriousCamera {
             }
             if self.encoder_enabled {
                 ffi::mmal_component_disable(self.encoder.unwrap().as_ptr());
+                #[cfg(feature = "debug")]
                 println!("encoder disabled");
             }
             if self.enabled {
                 ffi::mmal_component_disable(self.camera.as_ptr());
+                #[cfg(feature = "debug")]
                 println!("camera disabled");
             }
             if self.encoder_control_port_enabled {
                 ffi::mmal_port_disable(self.encoder.unwrap().as_ref().control);
+                #[cfg(feature = "debug")]
                 println!("port disabled");
             }
             if self.camera_port_enabled {
                 ffi::mmal_port_disable(self.camera.as_ref().control);
+                #[cfg(feature = "debug")]
                 println!("port disabled");
             }
 
             ffi::mmal_component_destroy(self.camera.as_ptr());
+            #[cfg(feature = "debug")]
             println!("camera destroyed");
             if self.encoder_created {
                 ffi::mmal_component_destroy(self.encoder.unwrap().as_ptr());
+                #[cfg(feature = "debug")]
                 println!("encoder destroyed");
             }
         }

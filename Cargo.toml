@@ -14,5 +14,8 @@ scopeguard = "0.3.3"
 name = "test"
 path = "src/main.rs"
 
-[profile.dev]
-# opt-level = 3
+[features]
+default = []
+
+# Enable this feature to enable some print statements for debugging.
+debug = []
