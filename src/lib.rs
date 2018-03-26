@@ -1112,12 +1112,12 @@ impl Drop for SeriousCamera {
 /// # Examples
 ///
 /// ```
-/// use cam::SimpleCamera;
+/// use rascam::SimpleCamera;
 /// use std::fs::File;
 /// use std::io::Write;
 /// use std::{thread, time};
 ///
-/// let info = cam::info().unwrap();
+/// let info = rascam::info().unwrap();
 /// let mut camera = SimpleCamera::new(info.cameras[0].clone()).unwrap();
 /// camera.activate().unwrap();
 ///

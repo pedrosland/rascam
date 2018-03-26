@@ -5,9 +5,9 @@ use std::os::raw::c_uint;
 /// Settings for the camera.
 ///
 /// ```
-/// # use cam::{CameraError, CameraSettings, SimpleCamera};
+/// # use rascam::{CameraError, CameraSettings, SimpleCamera};
 /// #
-/// # let info = cam::info().unwrap().cameras[0].clone();
+/// # let info = rascam::info().unwrap().cameras[0].clone();
 /// # let mut camera = SimpleCamera::new(info.clone()).unwrap();
 /// #
 /// let settings = CameraSettings{
