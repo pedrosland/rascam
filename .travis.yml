@@ -1,0 +1,19 @@
+---
+dist: trusty
+cache: cargo
+language: rust
+rust:
+  - nightly
+
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+script:
+  # Fudge sanity checks and build docs
+  - MMAL_INCLUDE_DIR=/tmp MMAL_LIB_DIR=/tmp cross doc --target armv7-unknown-linux-gnueabihf
+
+after_success:
+  # Upload the documentation from the build with nightly
+  # Runs on the master branch, not individual PRs
+  - bash ci/docs.sh
