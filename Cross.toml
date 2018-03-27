@@ -1,0 +1,11 @@
+[build.env]
+passthrough = [
+  "RUST_BACKTRACE",
+  "RUST_LOG",
+  "MMAL_LIB_DIR",
+  "MMAL_INCLUDE_DIR"
+]
+
+# Raspberry Pi 3
+[target.armv7-unknown-linux-gnueabihf]
+image = "pedrosland/armv7-unknown-linux-gnueabihf:latest"

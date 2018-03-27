@@ -2,7 +2,7 @@
 set -e
 set -x
 
-LIB_NAME="mmal_sys"
+LIB_NAME="rascam"
 SOURCE_BRANCH="master"
 TARGET_BRANCH="gh-pages"
 
@@ -58,7 +58,7 @@ git commit --quiet -m "Deploy to GitHub Pages: ${SHA}"
 cd ..
 
 # Get the deploy key by using Travis's stored variables to decrypt travis_deploy_key.enc
-openssl aes-256-cbc -K $encrypted_13d65ea92dcd_key -iv $encrypted_13d65ea92dcd_iv -in ci/travis_deploy_key.enc -out ci/travis_deploy_key -d
+openssl aes-256-cbc -K $encrypted_62a1c2a70be7_key -iv $encrypted_62a1c2a70be7_iv -in ci/travis_deploy_key.enc -out ci/travis_deploy_key -d
 chmod 600 ci/travis_deploy_key
 
 # Push (deploy)

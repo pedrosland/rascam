@@ -9,6 +9,9 @@ before_cache:
   # Travis can't cache files that are not readable by "others"
   - chmod -R a+r $HOME/.cargo
 
+install:
+  - bash ci/install.sh
+
 script:
   # Fudge sanity checks and build docs
   - MMAL_INCLUDE_DIR=/tmp MMAL_LIB_DIR=/tmp cross doc --target armv7-unknown-linux-gnueabihf
