@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `MMAL_COMPONENT_T` struct in crate `mmal_sys`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, MMAL_COMPONENT_T">
+
+    <title>mmal_sys::MMAL_COMPONENT_T - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct MMAL_COMPONENT_T</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.priv_">priv_</a><a href="#structfield.userdata">userdata</a><a href="#structfield.name">name</a><a href="#structfield.is_enabled">is_enabled</a><a href="#structfield.control">control</a><a href="#structfield.input_num">input_num</a><a href="#structfield.input">input</a><a href="#structfield.output_num">output_num</a><a href="#structfield.output">output</a><a href="#structfield.clock_num">clock_num</a><a href="#structfield.clock">clock</a><a href="#structfield.port_num">port_num</a><a href="#structfield.port">port</a><a href="#structfield.id">id</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-Copy">Copy</a><a href="#impl-Clone">Clone</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">!Send</a><a href="#impl-Sync">!Sync</a></div></div><p class='location'><a href='index.html'>mmal_sys</a></p><script>window.sidebarCurrent = {name: 'MMAL_COMPONENT_T', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>mmal_sys</a>::<wbr><a class="struct" href=''>MMAL_COMPONENT_T</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/mmal_sys/bindings.rs.html#12032-12066' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'><div class="docblock attributes">#[repr(C)]
+</div>pub struct MMAL_COMPONENT_T {
+    pub priv_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_PRIVATE_T.html" title="struct mmal_sys::MMAL_COMPONENT_PRIVATE_T">MMAL_COMPONENT_PRIVATE_T</a>,
+    pub userdata: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_USERDATA_T.html" title="struct mmal_sys::MMAL_COMPONENT_USERDATA_T">MMAL_COMPONENT_USERDATA_T</a>,
+    pub name: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="https://doc.rust-lang.org/nightly/std/os/raw/type.c_char.html" title="type std::os::raw::c_char">c_char</a>,
+    pub is_enabled: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    pub control: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a>,
+    pub input_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    pub input: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a>,
+    pub output_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    pub output: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a>,
+    pub clock_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    pub clock: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a>,
+    pub port_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    pub port: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a>,
+    pub id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+}</pre><div class='docblock'><p>Definition of a component.</p>
+</div><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.priv_" class="structfield small-section-header">
+                           <a href="#structfield.priv_" class="anchor field"></a>
+                           <span id="priv_.v" class='invisible'>
+                           <code>priv_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_PRIVATE_T.html" title="struct mmal_sys::MMAL_COMPONENT_PRIVATE_T">MMAL_COMPONENT_PRIVATE_T</a></code>
+                           </span></span><div class='docblock'><p>Pointer to the private data of the module in use</p>
+</div><span id="structfield.userdata" class="structfield small-section-header">
+                           <a href="#structfield.userdata" class="anchor field"></a>
+                           <span id="userdata.v" class='invisible'>
+                           <code>userdata: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_USERDATA_T.html" title="struct mmal_sys::MMAL_COMPONENT_USERDATA_T">MMAL_COMPONENT_USERDATA_T</a></code>
+                           </span></span><div class='docblock'><p>Pointer to private data of the client</p>
+</div><span id="structfield.name" class="structfield small-section-header">
+                           <a href="#structfield.name" class="anchor field"></a>
+                           <span id="name.v" class='invisible'>
+                           <code>name: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="https://doc.rust-lang.org/nightly/std/os/raw/type.c_char.html" title="type std::os::raw::c_char">c_char</a></code>
+                           </span></span><div class='docblock'><p>Component name</p>
+</div><span id="structfield.is_enabled" class="structfield small-section-header">
+                           <a href="#structfield.is_enabled" class="anchor field"></a>
+                           <span id="is_enabled.v" class='invisible'>
+                           <code>is_enabled: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><div class='docblock'><p>Specifies whether the component is enabled or not</p>
+</div><span id="structfield.control" class="structfield small-section-header">
+                           <a href="#structfield.control" class="anchor field"></a>
+                           <span id="control.v" class='invisible'>
+                           <code>control: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a></code>
+                           </span></span><div class='docblock'><p>All components expose a control port.
+The control port is used by clients to set / get parameters that are global to the
+component. It is also used to receive events, which again are global to the component.
+To be able to receive events, the client needs to enable and register a callback on the
+control port.</p>
+</div><span id="structfield.input_num" class="structfield small-section-header">
+                           <a href="#structfield.input_num" class="anchor field"></a>
+                           <span id="input_num.v" class='invisible'>
+                           <code>input_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><div class='docblock'><p>&lt; Number of input ports</p>
+</div><span id="structfield.input" class="structfield small-section-header">
+                           <a href="#structfield.input" class="anchor field"></a>
+                           <span id="input.v" class='invisible'>
+                           <code>input: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a></code>
+                           </span></span><div class='docblock'><p>&lt; Array of input ports</p>
+</div><span id="structfield.output_num" class="structfield small-section-header">
+                           <a href="#structfield.output_num" class="anchor field"></a>
+                           <span id="output_num.v" class='invisible'>
+                           <code>output_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><div class='docblock'><p>&lt; Number of output ports</p>
+</div><span id="structfield.output" class="structfield small-section-header">
+                           <a href="#structfield.output" class="anchor field"></a>
+                           <span id="output.v" class='invisible'>
+                           <code>output: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a></code>
+                           </span></span><div class='docblock'><p>&lt; Array of output ports</p>
+</div><span id="structfield.clock_num" class="structfield small-section-header">
+                           <a href="#structfield.clock_num" class="anchor field"></a>
+                           <span id="clock_num.v" class='invisible'>
+                           <code>clock_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><div class='docblock'><p>&lt; Number of clock ports</p>
+</div><span id="structfield.clock" class="structfield small-section-header">
+                           <a href="#structfield.clock" class="anchor field"></a>
+                           <span id="clock.v" class='invisible'>
+                           <code>clock: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a></code>
+                           </span></span><div class='docblock'><p>&lt; Array of clock ports</p>
+</div><span id="structfield.port_num" class="structfield small-section-header">
+                           <a href="#structfield.port_num" class="anchor field"></a>
+                           <span id="port_num.v" class='invisible'>
+                           <code>port_num: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><div class='docblock'><p>&lt; Total number of ports</p>
+</div><span id="structfield.port" class="structfield small-section-header">
+                           <a href="#structfield.port" class="anchor field"></a>
+                           <span id="port.v" class='invisible'>
+                           <code>port: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="struct" href="../mmal_sys/struct.MMAL_PORT_T.html" title="struct mmal_sys::MMAL_PORT_T">MMAL_PORT_T</a></code>
+                           </span></span><div class='docblock'><p>&lt; Array of all the ports (control/input/output/clock)</p>
+</div><span id="structfield.id" class="structfield small-section-header">
+                           <a href="#structfield.id" class="anchor field"></a>
+                           <span id="id.v" class='invisible'>
+                           <code>id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><div class='docblock'><p>Uniquely identifies the component's instance within the MMAL
+context / process. For debugging.</p>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_T.html" title="struct mmal_sys::MMAL_COMPONENT_T">MMAL_COMPONENT_T</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/mmal_sys/bindings.rs.html#12031' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/mmal_sys/bindings.rs.html#12031' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_T.html" title="struct mmal_sys::MMAL_COMPONENT_T">MMAL_COMPONENT_T</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/mmal_sys/bindings.rs.html#12031' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_T.html" title="struct mmal_sys::MMAL_COMPONENT_T">MMAL_COMPONENT_T</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/mmal_sys/bindings.rs.html#12031' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_T.html" title="struct mmal_sys::MMAL_COMPONENT_T">MMAL_COMPONENT_T</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/mmal_sys/bindings.rs.html#12031' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#117-119' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div></div>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_T.html" title="struct mmal_sys::MMAL_COMPONENT_T">MMAL_COMPONENT_T</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../mmal_sys/struct.MMAL_COMPONENT_T.html" title="struct mmal_sys::MMAL_COMPONENT_T">MMAL_COMPONENT_T</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "mmal_sys";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>
