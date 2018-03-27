@@ -4,10 +4,13 @@ version = "0.0.1"
 authors = ["Peter Sutherland <pedrosland+rascam@gmail.com>"]
 description = "Library for taking photos and videos with the Raspberry Pi camera"
 repository = "https://github.com/pedrosland/rascam"
+documentation = "https://pedrosland.github.io/rascam/"
 readme = "README.md"
 license = "MIT"
 categories = [ "hardware-support" ]
 keywords = [ "camera", "raspberry", "pi", "rpi" ]
+exclude = [ "ci/*" ]
+build = "build.rs"
 
 [dependencies]
 mmal-sys = "0.1.0-1"
