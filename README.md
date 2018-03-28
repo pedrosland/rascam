@@ -12,7 +12,7 @@ There are three main components in this library:
 
 ## Documentation and examples
 
-Please see the [documentation](https://docs.rs/crate/mmal/0.0.0) and [examples](https://github.com/pedrosland/mmal/tree/master/examples)
+Please see the [documentation](https://pedrosland.github.io/rascam/) and [examples](https://github.com/pedrosland/rascam/tree/master/examples)
 
 ## Usage
 
@@ -33,7 +33,7 @@ If things are crashing or producing unexpected results there is a feature flag w
 
 ```toml
 [dependencies]
-libc = { version = "0.0.1", features = ["debug"] }
+rascam = { version = "0.0.1", features = ["debug"] }
 ```
 
 ## License
