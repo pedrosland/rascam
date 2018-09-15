@@ -5,10 +5,10 @@
 //!
 //! [mmal-sys]: https://crates.io/crates/mmal-sys
 
-#![feature(ptr_internals)]
 extern crate libc;
 extern crate mmal_sys as ffi;
 extern crate parking_lot;
+extern crate lock_api;
 #[macro_use(defer_on_unwind)]
 extern crate scopeguard;
 // extern crate futures;
@@ -24,6 +24,7 @@ use std::sync::{Arc, Once, ONCE_INIT};
 use std::sync::mpsc;
 use std::ptr;
 use parking_lot::Mutex;
+use lock_api::RawMutex;
 
 mod error;
 mod settings;
@@ -947,12 +948,15 @@ impl SeriousCamera {
     }
 
     pub fn take(&mut self) -> Result<mpsc::Receiver<Option<BufferGuard>>, CameraError> {
-        self.mutex.raw_lock();
+        unsafe {
+            self.mutex.raw().lock();
+        }
+
         let mut buffer_port_ptr = ptr::null_mut();
         let mutex = Arc::clone(&self.mutex);
 
         defer_on_unwind!{{
-            unsafe { mutex.raw_unlock() };
+            unsafe { mutex.force_unlock() };
         }}
 
         self.do_take(&mut buffer_port_ptr).map_err(|e| {
@@ -962,7 +966,7 @@ impl SeriousCamera {
                 {
                     drop_port_userdata(buffer_port_ptr);
                 }
-                self.mutex.raw_unlock();
+                self.mutex.force_unlock();
             }
             e
         })
@@ -1221,7 +1225,7 @@ impl SimpleCamera {
 pub fn drop_port_userdata(port: *mut ffi::MMAL_PORT_T) {
     unsafe {
         let userdata: Box<Userdata> = Box::from_raw((*port).userdata as *mut Userdata);
-        userdata._guard.raw_unlock();
+        userdata._guard.force_unlock();
         drop(userdata);
         (*port).userdata = ptr::null_mut() as *mut ffi::MMAL_PORT_USERDATA_T;
     }

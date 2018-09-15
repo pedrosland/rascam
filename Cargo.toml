@@ -13,9 +13,10 @@ exclude = [ "ci/*" ]
 build = "build.rs"
 
 [dependencies]
-mmal-sys = "0.1.0-1"
+mmal-sys = { version = "0.1.0-2", path = "./mmal-sys" }
 libc = "0.2"
-parking_lot = {version = "0.5", features = ["nightly"]}
+lock_api = "0.1.3"
+parking_lot = "0.6"
 scopeguard = "0.3.3"
 
 [features]
