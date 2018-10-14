@@ -13,7 +13,7 @@ exclude = [ "ci/*" ]
 build = "build.rs"
 
 [dependencies]
-mmal-sys = { version = "0.1.0-2", path = "./mmal-sys" }
+mmal-sys = "0.1.0-2"
 libc = "0.2"
 lock_api = "0.1.3"
 parking_lot = "0.6"
