@@ -32,7 +32,7 @@ mod settings;
 use init::init;
 pub use info::*;
 pub use error::{CameraError, MmalError};
-pub use settings::CameraSettings;
+pub use settings::*;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
@@ -398,8 +398,18 @@ impl SeriousCamera {
                 };
             }
 
+            let control = self.camera.as_ref().control;
+
             // TODO:
             //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
+
+            let status = ffi::mmal_port_parameter_set_uint32(control, ffi::MMAL_PARAMETER_ISO, settings.iso);
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set ISO".to_owned(),
+                    status,
+                ).into());
+            }
 
             let mut format = preview_port.format;
 
@@ -1032,7 +1042,7 @@ impl SimpleCamera {
         let sc = SeriousCamera::new()?;
 
         Ok(SimpleCamera {
-            info: info,
+            info,
             serious: sc,
             settings: None,
         })

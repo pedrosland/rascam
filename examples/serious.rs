@@ -33,6 +33,7 @@ fn serious(info: &CameraInfo) {
         encoding: MMAL_ENCODING_RGB24,
         width: 96, // 96px will not require padding
         height: 96,
+        iso: ISO_AUTO,
         zero_copy: true,
         use_encoder: false,
     };
