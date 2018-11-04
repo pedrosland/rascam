@@ -22,7 +22,7 @@ pub struct CameraSettings {
     pub width: u32,  // 0 = max
     pub height: u32, // 0 = max
     pub zero_copy: bool,
-    /// this will go away
+    /// `use_encoder` will go away
     pub use_encoder: bool,
 }
 

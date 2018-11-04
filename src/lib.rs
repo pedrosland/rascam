@@ -13,22 +13,24 @@ extern crate lock_api;
 extern crate scopeguard;
 // extern crate futures;
 use ffi::MMAL_STATUS_T;
-use std::fmt;
 use std::os::raw::c_char;
 use std::ffi::CStr;
 use std::mem;
 use std::ptr::NonNull;
 use std::slice;
-use std::string::String;
-use std::sync::{Arc, Once, ONCE_INIT};
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::ptr;
 use parking_lot::Mutex;
 use lock_api::RawMutex;
 
+mod init;
+mod info;
 mod error;
 mod settings;
 
+use init::init;
+pub use info::*;
 pub use error::{CameraError, MmalError};
 pub use settings::CameraSettings;
 
@@ -52,118 +54,6 @@ pub use ffi::MMAL_ENCODING_OPAQUE;
 pub use ffi::MMAL_ENCODING_RGB24;
 
 // type Future2 = Box<Future<Item = [u8], Error = ffi::MMAL_STATUS_T::Type>>;
-
-/// Contains information about attached cameras.
-pub struct Info {
-    pub cameras: Vec<CameraInfo>,
-    // TODO: flashes?
-}
-
-impl fmt::Display for Info {
-    /// Pretty prints a list of attached cameras.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Found {} camera(s)", self.cameras.len()).unwrap();
-
-        // We can't iterate over all cameras because we will always have 4.
-        // Alternatively, we could iterate and break early. Not sure if that is more rust-y
-        self.cameras.iter().for_each(|camera| {
-            write!(f, "\n  {}", camera).unwrap();
-        });
-
-        Ok(())
-    }
-}
-
-/// Information about an attached camera. Created by the [`info`] function.
-///
-/// [`info`]: info()
-#[derive(Clone, Debug)]
-pub struct CameraInfo {
-    pub port_id: u32,
-    pub max_width: u32,
-    pub max_height: u32,
-    pub lens_present: bool,
-    pub camera_name: String,
-}
-
-impl fmt::Display for CameraInfo {
-    /// Pretty prints this camera's name and its max resolution.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} {}x{}",
-            &self.camera_name, self.max_width, self.max_height
-        )
-    }
-}
-
-/// This function must be called before any mmal work. Failure to do so will cause errors like:
-///
-/// mmal: mmal_component_create_core: could not find component 'vc.camera_info'
-///
-/// See this for more info https://github.com/thaytan/gst-rpicamsrc/issues/28
-fn init() {
-    static INIT: Once = ONCE_INIT;
-    INIT.call_once(|| unsafe {
-        ffi::bcm_host_init();
-        ffi::vcos_init();
-        ffi::mmal_vc_init();
-    });
-}
-
-/// Retrieves info on attached cameras
-pub fn info() -> Result<Info, CameraError> {
-    init();
-
-    unsafe {
-        let info_type: *const c_char =
-            ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const c_char;
-        let mut component: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized(); // or ptr::null_mut()
-        let status = ffi::mmal_component_create(info_type, &mut component);
-
-        match status {
-            MMAL_STATUS_T::MMAL_SUCCESS => {
-                let mut info: ffi::MMAL_PARAMETER_CAMERA_INFO_T = mem::uninitialized();
-                info.hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
-                info.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
-
-                let status = ffi::mmal_port_parameter_get((*component).control, &mut info.hdr);
-
-                match status {
-                    MMAL_STATUS_T::MMAL_SUCCESS => {
-                        let cameras = info.cameras
-                            .iter()
-                            .take(info.num_cameras as usize)
-                            .map(|cam| CameraInfo {
-                                port_id: cam.port_id,
-                                max_width: cam.max_width,
-                                max_height: cam.max_height,
-                                lens_present: if cam.lens_present == 1 { true } else { false },
-                                camera_name: CStr::from_ptr(cam.camera_name.as_ptr())
-                                    .to_string_lossy()
-                                    .into_owned(),
-                            })
-                            .collect();
-
-                        ffi::mmal_component_destroy(component);
-
-                        Ok(Info { cameras: cameras })
-                    }
-                    s => {
-                        ffi::mmal_component_destroy(component);
-                        Err(
-                            MmalError::with_status("Failed to get camera info".to_owned(), s)
-                                .into(),
-                        )
-                    }
-                }
-            }
-            s => Err(
-                MmalError::with_status("Failed to create camera component".to_owned(), s).into(),
-            ),
-        }
-    }
-}
 
 struct Userdata {
     pool: NonNull<ffi::MMAL_POOL_T>,
