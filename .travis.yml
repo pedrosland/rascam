@@ -17,7 +17,7 @@ install:
 script:
   - cross test --target armv7-unknown-linux-gnueabihf
   # Fudge sanity checks and build docs
-  - MMAL_INCLUDE_DIR=/tmp MMAL_LIB_DIR=/tmp cross doc --target armv7-unknown-linux-gnueabihf
+  - MMAL_INCLUDE_DIR=/tmp MMAL_LIB_DIR=/tmp cross doc --package rascam --target armv7-unknown-linux-gnueabihf
 
 deploy:
   # Upload the documentation from the build with stable
