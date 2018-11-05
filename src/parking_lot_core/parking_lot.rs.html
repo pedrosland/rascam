@@ -1,61 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/parking_lot_core-0.2.13/src/parking_lot.rs`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang">
-
-    <title>parking_lot.rs.html -- source</title>
-
-    <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
-          id="mainThemeStyle">
-    
-    <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
-    <script src="../../storage.js"></script>
-    
-
-    
-    
-</head>
-<body class="rustdoc source">
-    <!--[if lte IE 8]>
-    <div class="warning">
-        This old browser is unsupported and will most likely display funky
-        things.
-    </div>
-    <![endif]-->
-
-    
-
-    <nav class="sidebar">
-        <div class="sidebar-menu">&#9776;</div>
-        
-        
-    </nav>
-
-    <div class="theme-picker">
-        <button id="theme-picker" aria-label="Pick another theme!">
-            <img src="../../brush.svg" width="18" alt="Pick another theme!">
-        </button>
-        <div id="theme-choices"></div>
-    </div>
-    <script src="../../theme.js"></script>
-    <nav class="sub">
-        <form class="search-form js-only">
-            <div class="search-container">
-                <input class="search-input" name="search"
-                       autocomplete="off"
-                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
-                       type="search">
-            </div>
-        </form>
-    </nav>
-
-    <section id='main' class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/parking_lot_core-0.3.1/src/parking_lot.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>parking_lot.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1444,6 +1387,8 @@
 <span id="1387">1387</span>
 <span id="1388">1388</span>
 <span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2016 Amanieu d&#39;Antras</span>
 <span class="comment">//</span>
@@ -1452,19 +1397,20 @@
 <span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
 <span class="comment">// copied, modified, or distributed except according to those terms.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">AtomicUsize</span>, <span class="ident">Ordering</span>, <span class="ident">ATOMIC_USIZE_INIT</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{<span class="ident">Cell</span>, <span class="ident">UnsafeCell</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">LocalKey</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">panic</span>;
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">rngs</span>::<span class="ident">SmallRng</span>;
+<span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">FromEntropy</span>, <span class="ident">Rng</span>};
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
-<span class="kw">use</span> <span class="ident">rand</span>::{<span class="self">self</span>, <span class="ident">Rng</span>, <span class="ident">XorShiftRng</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{<span class="ident">Cell</span>, <span class="ident">UnsafeCell</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">has_localkey_try_with</span>))]</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">panic</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">AtomicUsize</span>, <span class="ident">Ordering</span>, <span class="ident">ATOMIC_USIZE_INIT</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">LocalKey</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 <span class="kw">use</span> <span class="ident">thread_parker</span>::<span class="ident">ThreadParker</span>;
-<span class="kw">use</span> <span class="ident">word_lock</span>::<span class="ident">WordLock</span>;
 <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">UncheckedOptionExt</span>;
+<span class="kw">use</span> <span class="ident">word_lock</span>::<span class="ident">WordLock</span>;
 
 <span class="kw">static</span> <span class="ident">NUM_THREADS</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
 <span class="kw">static</span> <span class="ident">HASHTABLE</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
@@ -1538,14 +1484,14 @@
     <span class="ident">timeout</span>: <span class="ident">Instant</span>,
 
     <span class="comment">// Random number generator for calculating the next timeout</span>
-    <span class="ident">rng</span>: <span class="ident">XorShiftRng</span>,
+    <span class="ident">rng</span>: <span class="ident">SmallRng</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">FairTimeout</span> {
     <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">FairTimeout</span> {
         <span class="ident">FairTimeout</span> {
             <span class="ident">timeout</span>: <span class="ident">Instant</span>::<span class="ident">now</span>(),
-            <span class="ident">rng</span>: <span class="ident">rand</span>::<span class="ident">weak_rng</span>(),
+            <span class="ident">rng</span>: <span class="ident">SmallRng</span>::<span class="ident">from_entropy</span>(),
         }
     }
 
@@ -1582,7 +1528,8 @@
 
     <span class="comment">// Extra data for deadlock detection</span>
     <span class="comment">// TODO: once supported in stable replace with #[cfg...] &amp; remove dummy struct/impl</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span> <span class="ident">deadlock_data</span>: <span class="ident">deadlock</span>::<span class="ident">DeadlockData</span>,
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="ident">deadlock_data</span>: <span class="ident">deadlock</span>::<span class="ident">DeadlockData</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ThreadData</span> {
@@ -1610,11 +1557,11 @@
 <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_thread_data</span>(<span class="ident">local</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ThreadData</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ThreadData</span> {
     <span class="comment">// Try to read from thread-local storage, but return None if the TLS has</span>
     <span class="comment">// already been destroyed.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">has_localkey_try_with</span>)]</span>
     <span class="kw">fn</span> <span class="ident">try_get_tls</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">LocalKey</span><span class="op">&lt;</span><span class="ident">ThreadData</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ThreadData</span><span class="op">&gt;</span> {
         <span class="ident">key</span>.<span class="ident">try_with</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ThreadData</span>).<span class="ident">ok</span>()
     }
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">has_localkey_try_with</span>))]</span>
     <span class="kw">fn</span> <span class="ident">try_get_tls</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">LocalKey</span><span class="op">&lt;</span><span class="ident">ThreadData</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ThreadData</span><span class="op">&gt;</span> {
         <span class="ident">panic</span>::<span class="ident">catch_unwind</span>(<span class="op">||</span> <span class="ident">key</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ThreadData</span>)).<span class="ident">ok</span>()
     }
@@ -2515,7 +2462,7 @@
     <span class="ident">result</span>
 }
 
-<span class="doccomment">/// [Experimental] Deadlock detection</span>
+<span class="doccomment">/// \[Experimental\] Deadlock detection</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Enabled via the `deadlock_detection` feature flag.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">deadlock</span> {
@@ -2573,14 +2520,14 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;deadlock_detection&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">deadlock_impl</span> {
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">get_hashtable</span>, <span class="ident">get_thread_data</span>, <span class="ident">lock_bucket</span>, <span class="ident">ThreadData</span>, <span class="ident">NUM_THREADS</span>};
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{<span class="ident">Cell</span>, <span class="ident">UnsafeCell</span>};
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">Ordering</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
-    <span class="kw">use</span> <span class="ident">thread_id</span>;
     <span class="kw">use</span> <span class="ident">backtrace</span>::<span class="ident">Backtrace</span>;
     <span class="kw">use</span> <span class="ident">petgraph</span>;
     <span class="kw">use</span> <span class="ident">petgraph</span>::<span class="ident">graphmap</span>::<span class="ident">DiGraphMap</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{<span class="ident">Cell</span>, <span class="ident">UnsafeCell</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">Ordering</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
+    <span class="kw">use</span> <span class="ident">thread_id</span>;
 
     <span class="doccomment">/// Representation of a deadlocked thread</span>
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DeadlockedThread</span> {
@@ -2632,8 +2579,7 @@
                 .<span class="ident">send</span>(<span class="ident">DeadlockedThread</span> {
                     <span class="ident">thread_id</span>: <span class="ident">td</span>.<span class="ident">deadlock_data</span>.<span class="ident">thread_id</span>,
                     <span class="ident">backtrace</span>: <span class="ident">Backtrace</span>::<span class="ident">new</span>(),
-                })
-                .<span class="ident">unwrap</span>();
+                }).<span class="ident">unwrap</span>();
             <span class="comment">// make sure to close this sender</span>
             <span class="ident">drop</span>(<span class="ident">sender</span>);
 
@@ -2809,14 +2755,15 @@
 
     <span class="comment">// returns all thread cycles in the wait graph</span>
     <span class="kw">fn</span> <span class="ident">graph_cycles</span>(<span class="ident">g</span>: <span class="kw-2">&amp;</span><span class="ident">DiGraphMap</span><span class="op">&lt;</span><span class="ident">WaitGraphNode</span>, ()<span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ThreadData</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">use</span> <span class="ident">petgraph</span>::<span class="ident">visit</span>::<span class="ident">NodeIndexable</span>;
         <span class="kw">use</span> <span class="ident">petgraph</span>::<span class="ident">visit</span>::<span class="ident">depth_first_search</span>;
         <span class="kw">use</span> <span class="ident">petgraph</span>::<span class="ident">visit</span>::<span class="ident">DfsEvent</span>;
+        <span class="kw">use</span> <span class="ident">petgraph</span>::<span class="ident">visit</span>::<span class="ident">NodeIndexable</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cycles</span> <span class="op">=</span> <span class="ident">HashSet</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">g</span>.<span class="ident">node_bound</span>());
         <span class="comment">// start from threads to get the correct threads cycle</span>
-        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> <span class="ident">g</span>.<span class="ident">nodes</span>()
+        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> <span class="ident">g</span>
+            .<span class="ident">nodes</span>()
             .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="kw">if</span> <span class="kw">let</span> <span class="kw-2">&amp;</span><span class="ident">Thread</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">n</span> { <span class="bool-val">true</span> } <span class="kw">else</span> { <span class="bool-val">false</span> });
 
         <span class="ident">depth_first_search</span>(<span class="ident">g</span>, <span class="ident">threads</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">e</span> {
@@ -2835,68 +2782,4 @@
     }
 }
 </pre>
-</section>
-    <section id='search' class="content hidden"></section>
-
-    <section class="footer"></section>
-
-    <aside id="help" class="hidden">
-        <div>
-            <h1 class="hidden">Help</h1>
-
-            <div class="shortcuts">
-                <h2>Keyboard Shortcuts</h2>
-
-                <dl>
-                    <dt><kbd>?</kbd></dt>
-                    <dd>Show this help dialog</dd>
-                    <dt><kbd>S</kbd></dt>
-                    <dd>Focus the search field</dd>
-                    <dt><kbd>↑</kbd></dt>
-                    <dd>Move up in search results</dd>
-                    <dt><kbd>↓</kbd></dt>
-                    <dd>Move down in search results</dd>
-                    <dt><kbd>↹</kbd></dt>
-                    <dd>Switch tab</dd>
-                    <dt><kbd>&#9166;</kbd></dt>
-                    <dd>Go to active search result</dd>
-                    <dt><kbd>+</kbd></dt>
-                    <dd>Expand all sections</dd>
-                    <dt><kbd>-</kbd></dt>
-                    <dd>Collapse all sections</dd>
-                </dl>
-            </div>
-
-            <div class="infos">
-                <h2>Search Tricks</h2>
-
-                <p>
-                    Prefix searches with a type followed by a colon (e.g.
-                    <code>fn:</code>) to restrict the search to a given type.
-                </p>
-
-                <p>
-                    Accepted types are: <code>fn</code>, <code>mod</code>,
-                    <code>struct</code>, <code>enum</code>,
-                    <code>trait</code>, <code>type</code>, <code>macro</code>,
-                    and <code>const</code>.
-                </p>
-
-                <p>
-                    Search functions by type signature (e.g.
-                    <code>vec -> usize</code> or <code>* -> vec</code>)
-                </p>
-            </div>
-        </div>
-    </aside>
-
-    
-
-    <script>
-        window.rootPath = "../../";
-        window.currentCrate = "parking_lot_core";
-    </script>
-    <script src="../../main.js"></script>
-    <script defer src="../../search-index.js"></script>
-</body>
-</html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "parking_lot_core";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
