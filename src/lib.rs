@@ -19,8 +19,7 @@ use std::sync::Arc;
 use std::sync::mpsc;
 use std::ptr;
 use std::io::Write;
-use parking_lot::Mutex;
-use lock_api::RawMutex;
+use parking_lot::{Mutex, lock_api::RawMutex};
 
 mod init;
 mod info;

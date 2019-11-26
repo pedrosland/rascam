@@ -14,11 +14,10 @@ build = "build.rs"
 edition = "2018"
 
 [dependencies]
-mmal-sys = "0.1.0-2"
+mmal-sys = "0.1.0-3"
 libc = "0.2"
-lock_api = "0.1.3"
-parking_lot = "0.6"
-scopeguard = "0.3.3"
+parking_lot = "0.10"
+scopeguard = "1.0"
 
 [features]
 default = []
