@@ -11,6 +11,7 @@ categories = [ "hardware-support" ]
 keywords = [ "camera", "raspberry", "pi", "rpi" ]
 exclude = [ "ci/*" ]
 build = "build.rs"
+edition = "2018"
 
 [dependencies]
 mmal-sys = "0.1.0-2"
@@ -24,3 +25,6 @@ default = []
 
 # Enable this feature to enable some print statements for debugging.
 debug = []
+
+[package.metadata.docs.rs]
+default-target = "armv7-unknown-linux-gnueabihf"

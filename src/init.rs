@@ -1,5 +1,4 @@
-extern crate mmal_sys as ffi;
-
+use mmal_sys as ffi;
 use std::sync::Once;
 
 /// This function must be called before any mmal work. Failure to do so will cause errors like:

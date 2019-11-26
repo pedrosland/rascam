@@ -1,4 +1,4 @@
-extern crate mmal_sys as ffi;
+use mmal_sys as ffi;
 
 use std::os::raw::c_uint;
 

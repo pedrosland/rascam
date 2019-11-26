@@ -1,5 +1,4 @@
-extern crate mmal_sys as ffi;
-
+use mmal_sys as ffi;
 use ffi::MMAL_STATUS_T;
 use std::fmt;
 use std::os::raw::c_char;
@@ -7,8 +6,8 @@ use std::ffi::CStr;
 use std::mem;
 use std::string::String;
 
-use init::init;
-use error::{CameraError, MmalError};
+use crate::init::init;
+use crate::error::{CameraError, MmalError};
 
 /// Contains information about attached cameras.
 pub struct Info {

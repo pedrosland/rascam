@@ -1,5 +1,3 @@
-extern crate rascam;
-
 use std::{thread, time};
 use rascam::*;
 

@@ -5,13 +5,9 @@
 //!
 //! [mmal-sys]: https://crates.io/crates/mmal-sys
 
-extern crate libc;
-extern crate mmal_sys as ffi;
-extern crate parking_lot;
-extern crate lock_api;
+use mmal_sys as ffi;
 #[macro_use(defer_on_unwind)]
 extern crate scopeguard;
-// extern crate futures;
 use ffi::MMAL_STATUS_T;
 use std::os::raw::c_char;
 use std::ffi::CStr;

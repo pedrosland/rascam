@@ -1,5 +1,3 @@
-extern crate rascam;
-
 use std::fs::File;
 use std::io::Write;
 use std::{thread, time};
