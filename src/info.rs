@@ -61,12 +61,13 @@ pub fn info() -> Result<Info, CameraError> {
     unsafe {
         let info_type: *const c_char =
             ffi::MMAL_COMPONENT_DEFAULT_CAMERA_INFO.as_ptr() as *const c_char;
-        let mut component: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized(); // or ptr::null_mut()
-        let status = ffi::mmal_component_create(info_type, &mut component);
+        let mut component = mem::MaybeUninit::uninit();
+        let status = ffi::mmal_component_create(info_type, component.as_mut_ptr());
 
         match status {
             MMAL_STATUS_T::MMAL_SUCCESS => {
-                let mut info: ffi::MMAL_PARAMETER_CAMERA_INFO_T = mem::uninitialized();
+                let component: *mut ffi::MMAL_COMPONENT_T = component.assume_init();
+                let mut info: ffi::MMAL_PARAMETER_CAMERA_INFO_T = mem::zeroed();
                 info.hdr.id = ffi::MMAL_PARAMETER_CAMERA_INFO as u32;
                 info.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_INFO_T>() as u32;
 

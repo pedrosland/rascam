@@ -76,7 +76,7 @@ impl error::Error for MmalError {
         &self.message
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         None
     }
 }
@@ -145,7 +145,7 @@ impl error::Error for CameraError {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *(self.kind()) {
             ErrorKind::Mmal(ref err) => Some(err),
             ErrorKind::Recv(ref err) => Some(err),

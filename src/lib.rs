@@ -16,11 +16,13 @@ use ffi::MMAL_STATUS_T;
 use std::os::raw::c_char;
 use std::ffi::CStr;
 use std::mem;
+use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::slice;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::ptr;
+use std::io::Write;
 use parking_lot::Mutex;
 use lock_api::RawMutex;
 
@@ -172,30 +174,33 @@ impl SeriousCamera {
     pub fn new() -> Result<SeriousCamera, CameraError> {
         init();
         unsafe {
-            let mut camera_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
+            let mut camera_ptr = MaybeUninit::uninit();
             let component: *const c_char =
                 ffi::MMAL_COMPONENT_DEFAULT_CAMERA.as_ptr() as *const c_char;
-            let status = ffi::mmal_component_create(component, &mut camera_ptr);
+            let status = ffi::mmal_component_create(component, camera_ptr.as_mut_ptr());
             match status {
-                MMAL_STATUS_T::MMAL_SUCCESS => Ok(SeriousCamera {
-                    camera: NonNull::new(camera_ptr).unwrap(),
-                    enabled: false,
-                    camera_port_enabled: false,
-                    pool: None,
-                    mutex: Arc::new(Mutex::new(())),
-                    still_port_enabled: false,
-                    // this is really a hack. ideally these objects wouldn't be structured this way
-                    encoder_created: false,
-                    encoder_enabled: false,
-                    encoder_control_port_enabled: false,
-                    encoder_output_port_enabled: false,
-                    encoder: None,
-                    connection_created: false,
-                    connection: None,
-                    preview_created: false,
-                    preview: None,
-                    use_encoder: false,
-                }),
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    let camera_ptr: *mut ffi::MMAL_COMPONENT_T = camera_ptr.assume_init();
+                    Ok(SeriousCamera {
+                        camera: NonNull::new(camera_ptr).unwrap(),
+                        enabled: false,
+                        camera_port_enabled: false,
+                        pool: None,
+                        mutex: Arc::new(Mutex::new(())),
+                        still_port_enabled: false,
+                        // this is really a hack. ideally these objects wouldn't be structured this way
+                        encoder_created: false,
+                        encoder_enabled: false,
+                        encoder_control_port_enabled: false,
+                        encoder_output_port_enabled: false,
+                        encoder: None,
+                        connection_created: false,
+                        connection: None,
+                        preview_created: false,
+                        preview: None,
+                        use_encoder: false,
+                    })
+                },
                 s => Err(MmalError::with_status("Could not create camera".to_owned(), s).into()),
             }
         }
@@ -203,7 +208,7 @@ impl SeriousCamera {
 
     pub fn set_camera_num(&mut self, num: u8) -> Result<(), CameraError> {
         unsafe {
-            let mut param: ffi::MMAL_PARAMETER_INT32_T = mem::uninitialized();
+            let mut param: ffi::MMAL_PARAMETER_INT32_T = mem::zeroed();
             param.hdr.id = ffi::MMAL_PARAMETER_CAMERA_NUM as u32;
             param.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_INT32_T>() as u32;
             param.value = num as i32;
@@ -220,12 +225,13 @@ impl SeriousCamera {
 
     pub fn create_encoder(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let mut encoder_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
+            let mut encoder_ptr = MaybeUninit::uninit();
             let component: *const c_char =
                 ffi::MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER.as_ptr() as *const c_char;
-            let status = ffi::mmal_component_create(component, &mut encoder_ptr);
+            let status = ffi::mmal_component_create(component, encoder_ptr.as_mut_ptr());
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
+                    let encoder_ptr: *mut ffi::MMAL_COMPONENT_T = encoder_ptr.assume_init();
                     self.encoder = Some(NonNull::new(encoder_ptr).unwrap());
                     self.encoder_created = true;
                     Ok(())
@@ -237,9 +243,9 @@ impl SeriousCamera {
 
     pub fn connect_encoder(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = mem::uninitialized();
+            let mut connection_ptr = MaybeUninit::uninit();
             let status = ffi::mmal_connection_create(
-                &mut connection_ptr,
+                connection_ptr.as_mut_ptr(),
                 *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT),
                 *self.encoder.unwrap().as_ref().input.offset(0),
                 ffi::MMAL_CONNECTION_FLAG_TUNNELLING
@@ -252,6 +258,7 @@ impl SeriousCamera {
                 ).into());
             }
 
+            let connection_ptr: *mut ffi::MMAL_CONNECTION_T = connection_ptr.assume_init();
             self.connection = Some(NonNull::new(connection_ptr).unwrap());
             self.connection_created = true;
             let status = ffi::mmal_connection_enable(&mut *connection_ptr);
@@ -342,7 +349,7 @@ impl SeriousCamera {
 
     pub fn set_camera_params(&mut self, info: &CameraInfo) -> Result<(), CameraError> {
         unsafe {
-            let mut cfg: ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = mem::uninitialized();
+            let mut cfg: ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = mem::zeroed();
             cfg.hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
             cfg.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_CAMERA_CONFIG_T>() as u32;
 
@@ -685,14 +692,15 @@ impl SeriousCamera {
             // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiPreview.c#L70
             // https://github.com/waveform80/picamera/issues/22
             // and the commit message that closed issue #22
-            let mut preview_ptr: *mut ffi::MMAL_COMPONENT_T = mem::uninitialized();
+            let mut preview_ptr = MaybeUninit::uninit();
             let status = ffi::mmal_component_create(
                 ffi::MMAL_COMPONENT_NULL_SINK.as_ptr(),
-                &mut preview_ptr,
+                preview_ptr.as_mut_ptr(),
             );
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
+                    let preview_ptr: *mut ffi::MMAL_COMPONENT_T = preview_ptr.assume_init();
                     self.preview = Some(NonNull::new(&mut *preview_ptr).unwrap());
                     self.preview_created = true;
                     Ok(())
@@ -707,7 +715,7 @@ impl SeriousCamera {
 
     pub fn connect_preview(&mut self) -> Result<(), CameraError> {
         unsafe {
-            let mut connection_ptr: *mut ffi::MMAL_CONNECTION_T = mem::uninitialized();
+            let mut connection_ptr = MaybeUninit::uninit();
 
             let preview_output_ptr = self.camera
                 .as_ref()
@@ -716,7 +724,7 @@ impl SeriousCamera {
             let preview_input_ptr = self.preview.unwrap().as_ref().input.offset(0);
 
             let status = ffi::mmal_connection_create(
-                &mut connection_ptr,
+                connection_ptr.as_mut_ptr(),
                 *preview_output_ptr,
                 *preview_input_ptr,
                 ffi::MMAL_CONNECTION_FLAG_TUNNELLING
@@ -1091,7 +1099,7 @@ impl SimpleCamera {
     /// Captures a single image from the camera synchronously and writes it to the given `Write` trait.
     ///
     /// If there is an error
-    pub fn take_one_writer(&mut self, writer: &mut ::std::io::Write) -> Result<(), CameraError> {
+    pub fn take_one_writer(&mut self, writer: &mut dyn Write) -> Result<(), CameraError> {
         let receiver = self.serious.take()?;
 
         loop {
