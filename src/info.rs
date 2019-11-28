@@ -1,13 +1,13 @@
-use mmal_sys as ffi;
 use ffi::MMAL_STATUS_T;
-use std::fmt;
-use std::os::raw::c_char;
+use mmal_sys as ffi;
 use std::ffi::CStr;
+use std::fmt;
 use std::mem;
+use std::os::raw::c_char;
 use std::string::String;
 
-use crate::init::init;
 use crate::error::{CameraError, MmalError};
+use crate::init::init;
 
 /// Contains information about attached cameras.
 pub struct Info {
@@ -74,7 +74,8 @@ pub fn info() -> Result<Info, CameraError> {
 
                 match status {
                     MMAL_STATUS_T::MMAL_SUCCESS => {
-                        let cameras = info.cameras
+                        let cameras = info
+                            .cameras
                             .iter()
                             .take(info.num_cameras as usize)
                             .map(|cam| CameraInfo {

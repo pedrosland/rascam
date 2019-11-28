@@ -1,5 +1,5 @@
-use std::{thread, time};
 use rascam::*;
+use std::{thread, time};
 
 // Make sure to run with --release
 
@@ -27,7 +27,8 @@ where
     let end = time::Instant::now();
 
     let duration = end.duration_since(start);
-    let runtime_secs = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
+    let runtime_secs =
+        duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
     (res, runtime_secs)
 }
 

@@ -9,26 +9,26 @@ use mmal_sys as ffi;
 #[macro_use(defer_on_unwind)]
 extern crate scopeguard;
 use ffi::MMAL_STATUS_T;
-use std::os::raw::c_char;
+use parking_lot::{lock_api::RawMutex, Mutex};
 use std::ffi::CStr;
+use std::io::Write;
 use std::mem;
 use std::mem::MaybeUninit;
+use std::os::raw::c_char;
+use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
-use std::sync::Arc;
 use std::sync::mpsc;
-use std::ptr;
-use std::io::Write;
-use parking_lot::{Mutex, lock_api::RawMutex};
+use std::sync::Arc;
 
-mod init;
-mod info;
 mod error;
+mod info;
+mod init;
 mod settings;
 
-use init::init;
-pub use info::*;
 pub use error::{CameraError, MmalError};
+pub use info::*;
+use init::init;
 pub use settings::*;
 
 const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
@@ -42,8 +42,8 @@ const PREVIEW_FRAME_RATE_NUM: i32 = 0;
 const PREVIEW_FRAME_RATE_DEN: i32 = 1;
 
 // TODO: what about the rest of these formats?
-pub use ffi::MMAL_ENCODING_JPEG;
 pub use ffi::MMAL_ENCODING_GIF;
+pub use ffi::MMAL_ENCODING_JPEG;
 pub use ffi::MMAL_ENCODING_PNG;
 
 pub use ffi::MMAL_ENCODING_OPAQUE;
@@ -195,7 +195,7 @@ impl SeriousCamera {
                         preview: None,
                         use_encoder: false,
                     })
-                },
+                }
                 s => Err(MmalError::with_status("Could not create camera".to_owned(), s).into()),
             }
         }
@@ -250,7 +250,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     "Unable to create camera->encoder connection".to_owned(),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             let connection_ptr: *mut ffi::MMAL_CONNECTION_T = connection_ptr.assume_init();
@@ -262,7 +263,8 @@ impl SeriousCamera {
                 s => Err(MmalError::with_status(
                     "Unable to enable camera->encoder connection".to_owned(),
                     s,
-                ).into()),
+                )
+                .into()),
             }
             // Ok(())
         }
@@ -366,7 +368,8 @@ impl SeriousCamera {
                 s => Err(MmalError::with_status(
                     "Unable to set control port parmaeter".to_owned(),
                     s,
-                ).into()),
+                )
+                .into()),
             }
         }
     }
@@ -405,12 +408,10 @@ impl SeriousCamera {
             // TODO:
             //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
-            let status = ffi::mmal_port_parameter_set_uint32(control, ffi::MMAL_PARAMETER_ISO, settings.iso);
+            let status =
+                ffi::mmal_port_parameter_set_uint32(control, ffi::MMAL_PARAMETER_ISO, settings.iso);
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(MmalError::with_status(
-                    "Unable to set ISO".to_owned(),
-                    status,
-                ).into());
+                return Err(MmalError::with_status("Unable to set ISO".to_owned(), status).into());
             }
 
             let mut format = preview_port.format;
@@ -442,7 +443,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     "Unable to set preview port format".to_owned(),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             if video_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
@@ -457,7 +459,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     "Unable to set video port format".to_owned(),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             format = still_port.format;
@@ -513,7 +516,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     format!("Unable to set zero copy to {}", settings.zero_copy),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             status = ffi::mmal_port_format_commit(still_port_ptr);
@@ -521,7 +525,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     "Unable to set still port format".to_owned(),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             if !self.use_encoder {
@@ -556,7 +561,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     "Unable to set encoder output port format".to_owned(),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             if encoding == ffi::MMAL_ENCODING_JPEG || encoding == ffi::MMAL_ENCODING_MJPEG {
@@ -570,7 +576,8 @@ impl SeriousCamera {
                     return Err(MmalError::with_status(
                         "Unable to set JPEG quality".to_owned(),
                         status,
-                    ).into());
+                    )
+                    .into());
                 }
 
                 // Set the JPEG restart interval
@@ -583,7 +590,8 @@ impl SeriousCamera {
                     return Err(MmalError::with_status(
                         "Unable to set JPEG restart interval".to_owned(),
                         status,
-                    ).into());
+                    )
+                    .into());
                 }
             }
 
@@ -626,13 +634,15 @@ impl SeriousCamera {
                         s => Err(MmalError::with_status(
                             "Unable to enable encoder component".to_owned(),
                             s,
-                        ).into()),
+                        )
+                        .into()),
                     }
                 }
                 s => Err(MmalError::with_status(
                     "Unable to enable encoder control port".to_owned(),
                     s,
-                ).into()),
+                )
+                .into()),
             }
         }
     }
@@ -674,7 +684,8 @@ impl SeriousCamera {
                         CStr::from_ptr((*port_ptr).name).to_string_lossy()
                     ),
                     MMAL_STATUS_T::MMAL_STATUS_MAX, // there is no status here unusually
-                ).into())
+                )
+                .into())
             } else {
                 self.pool = Some(NonNull::new(pool).unwrap());
                 Ok(())
@@ -703,7 +714,8 @@ impl SeriousCamera {
                 s => Err(MmalError::with_status(
                     "Unable to create null sink for preview".to_owned(),
                     s,
-                ).into()),
+                )
+                .into()),
             }
         }
     }
@@ -712,7 +724,8 @@ impl SeriousCamera {
         unsafe {
             let mut connection_ptr = MaybeUninit::uninit();
 
-            let preview_output_ptr = self.camera
+            let preview_output_ptr = self
+                .camera
                 .as_ref()
                 .output
                 .offset(MMAL_CAMERA_PREVIEW_PORT as isize);
@@ -762,14 +775,16 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     format!("Unable to get a required buffer {} from pool queue", i),
                     MMAL_STATUS_T::MMAL_STATUS_MAX,
-                ).into());
+                )
+                .into());
             } else {
                 let status = ffi::mmal_port_send_buffer(buffer_port_ptr, buffer);
                 if status != MMAL_STATUS_T::MMAL_SUCCESS {
                     return Err(MmalError::with_status(
                         format!("Unable to send a buffer to camera output port ({})", i),
                         status,
-                    ).into());
+                    )
+                    .into());
                 }
             }
         }
@@ -792,7 +807,8 @@ impl SeriousCamera {
                 return Err(MmalError::with_status(
                     "Unable to set shutter speed".to_owned(),
                     status,
-                ).into());
+                )
+                .into());
             }
 
             if self.use_encoder {
@@ -845,7 +861,8 @@ impl SeriousCamera {
                 s => Err(MmalError::with_status(
                     "Unable to set camera capture boolean".to_owned(),
                     s,
-                ).into()),
+                )
+                .into()),
             }
         }
     }
@@ -858,7 +875,7 @@ impl SeriousCamera {
         let mut buffer_port_ptr = ptr::null_mut();
         let mutex = Arc::clone(&self.mutex);
 
-        defer_on_unwind!{{
+        defer_on_unwind! {{
             unsafe { mutex.force_unlock() };
         }}
 
@@ -893,7 +910,8 @@ unsafe extern "C" fn camera_buffer_callback(
         // Check end of frame or error
         if ((*buffer).flags
             & (ffi::MMAL_BUFFER_HEADER_FLAG_FRAME_END
-                | ffi::MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED)) > 0
+                | ffi::MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
+            > 0
         {
             complete = true;
         }

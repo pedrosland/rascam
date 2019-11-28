@@ -1,7 +1,7 @@
+use rascam::*;
 use std::fs::File;
 use std::io::Write;
 use std::{thread, time};
-use rascam::*;
 
 fn main() {
     let info = info().unwrap();

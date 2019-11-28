@@ -1,10 +1,10 @@
-use mmal_sys as ffi;
 use ffi::MMAL_STATUS_T;
+use mmal_sys as ffi;
+use std::convert::From;
 use std::error;
 use std::fmt;
-use std::sync::mpsc;
 use std::io;
-use std::convert::From;
+use std::sync::mpsc;
 
 /// Represents an error from the MMAL library.
 pub struct MmalError {
