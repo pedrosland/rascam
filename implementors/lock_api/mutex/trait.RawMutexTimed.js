@@ -6,5 +6,4 @@ implementors["parking_lot"] = [{text:"impl <a class=\"trait\" href=\"lock_api/mu
             } else {
                 window.pending_implementors = implementors;
             }
-        
-})()
+        })()

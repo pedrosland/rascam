@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../rascam/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1130,7 +1130,24 @@
 <span id="1130">1130</span>
 <span id="1131">1131</span>
 <span id="1132">1132</span>
-</pre><pre class="rust ">
+<span id="1133">1133</span>
+<span id="1134">1134</span>
+<span id="1135">1135</span>
+<span id="1136">1136</span>
+<span id="1137">1137</span>
+<span id="1138">1138</span>
+<span id="1139">1139</span>
+<span id="1140">1140</span>
+<span id="1141">1141</span>
+<span id="1142">1142</span>
+<span id="1143">1143</span>
+<span id="1144">1144</span>
+<span id="1145">1145</span>
+<span id="1146">1146</span>
+<span id="1147">1147</span>
+<span id="1148">1148</span>
+<span id="1149">1149</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Access the native Raspberry Pi camera.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This module uses the MMAL library ([mmal-sys]) to access the Raspberry Pi&#39;s camera</span>
@@ -1138,33 +1155,30 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! [mmal-sys]: https://crates.io/crates/mmal-sys</span>
 
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">libc</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">mmal_sys</span> <span class="kw">as</span> <span class="ident">ffi</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">parking_lot</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">lock_api</span>;
+<span class="kw">use</span> <span class="ident">mmal_sys</span> <span class="kw">as</span> <span class="ident">ffi</span>;
 <span class="attribute">#[<span class="ident">macro_use</span>(<span class="ident">defer_on_unwind</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">scopeguard</span>;
-<span class="comment">// extern crate futures;</span>
 <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">MMAL_STATUS_T</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>;
+<span class="kw">use</span> <span class="ident">parking_lot</span>::{<span class="ident">lock_api</span>::<span class="ident">RawMutex</span>, <span class="ident">Mutex</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ffi</span>::<span class="ident">CStr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">MaybeUninit</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">NonNull</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
-<span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">Mutex</span>;
-<span class="kw">use</span> <span class="ident">lock_api</span>::<span class="ident">RawMutex</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
-<span class="kw">mod</span> <span class="ident">init</span>;
-<span class="kw">mod</span> <span class="ident">info</span>;
 <span class="kw">mod</span> <span class="ident">error</span>;
+<span class="kw">mod</span> <span class="ident">info</span>;
+<span class="kw">mod</span> <span class="ident">init</span>;
 <span class="kw">mod</span> <span class="ident">settings</span>;
 
-<span class="kw">use</span> <span class="ident">init</span>::<span class="ident">init</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">info</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">CameraError</span>, <span class="ident">MmalError</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">info</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">init</span>::<span class="ident">init</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">settings</span>::<span class="kw-2">*</span>;
 
 <span class="kw">const</span> <span class="ident">MMAL_CAMERA_PREVIEW_PORT</span>: <span class="ident">isize</span> <span class="op">=</span> <span class="number">0</span>;
@@ -1178,8 +1192,8 @@
 <span class="kw">const</span> <span class="ident">PREVIEW_FRAME_RATE_DEN</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="number">1</span>;
 
 <span class="comment">// TODO: what about the rest of these formats?</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_JPEG</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_GIF</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_JPEG</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_PNG</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_OPAQUE</span>;
@@ -1190,8 +1204,8 @@
 
 <span class="kw">struct</span> <span class="ident">Userdata</span> {
     <span class="ident">pool</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_POOL_T</span><span class="op">&gt;</span>,
-    <span class="ident">_guard</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;&gt;</span>,
-    <span class="ident">sender</span>: <span class="ident">mpsc</span>::<span class="ident">SyncSender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">_guard</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">sender</span>: <span class="ident">mpsc</span>::<span class="ident">SyncSender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// Guard around a buffer header.</span>
@@ -1211,25 +1225,25 @@
         <span class="ident">buffer</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_BUFFER_HEADER_T</span>,
         <span class="ident">pool</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_POOL_T</span><span class="op">&gt;</span>,
         <span class="ident">complete</span>: <span class="ident">bool</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">BufferGuard</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">BufferGuard</span> {
         <span class="ident">BufferGuard</span> {
-            <span class="ident">port</span>: <span class="ident">port</span>,
-            <span class="ident">buffer</span>: <span class="ident">buffer</span>,
-            <span class="ident">pool</span>: <span class="ident">pool</span>,
-            <span class="ident">complete</span>: <span class="ident">complete</span>,
+            <span class="ident">port</span>,
+            <span class="ident">buffer</span>,
+            <span class="ident">pool</span>,
+            <span class="ident">complete</span>,
         }
     }
 
     <span class="doccomment">/// Indicates if an image has been captured and this is the end of the image.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_complete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">return</span> <span class="self">self</span>.<span class="ident">complete</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_complete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">complete</span>
     }
 
     <span class="doccomment">/// Creates a slice representing the raw bytes of the image.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The data buffer is owned by the camera and must be copied to keep it around after the</span>
     <span class="doccomment">/// BufferGuard is dropped.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">buffer</span>;
             <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(
@@ -1260,14 +1274,14 @@
                     <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_send_buffer</span>(<span class="self">self</span>.<span class="ident">port</span>, <span class="ident">new_buffer</span>);
                 }
 
-                <span class="kw">if</span> <span class="ident">new_buffer</span>.<span class="ident">is_null</span>() <span class="op">||</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+                <span class="kw">if</span> <span class="ident">new_buffer</span>.<span class="ident">is_null</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;debug&quot;</span>)]</span>
                     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Unable to return the buffer to the port&quot;</span>);
                 }
             }
 
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">complete</span> {
-                <span class="kw">if</span> (<span class="kw-2">*</span><span class="self">self</span>.<span class="ident">port</span>).<span class="ident">userdata</span> <span class="op">!=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>() {
+                <span class="kw">if</span> <span class="op">!</span>(<span class="kw-2">*</span><span class="self">self</span>.<span class="ident">port</span>).<span class="ident">userdata</span>.<span class="ident">is_null</span>() {
                     <span class="ident">drop_port_userdata</span>(<span class="self">self</span>.<span class="ident">port</span>);
                 }
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;debug&quot;</span>)]</span>
@@ -1283,123 +1297,130 @@
     <span class="ident">enabled</span>: <span class="ident">bool</span>,
     <span class="ident">camera_port_enabled</span>: <span class="ident">bool</span>,
     <span class="ident">still_port_enabled</span>: <span class="ident">bool</span>,
-    <span class="ident">pool</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_POOL_T</span><span class="op">&gt;&gt;</span>,
-    <span class="ident">mutex</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;&gt;</span>,
+    <span class="ident">pool</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_POOL_T</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">mutex</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
 
-    <span class="ident">encoder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">encoder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">encoder_created</span>: <span class="ident">bool</span>,
     <span class="ident">encoder_enabled</span>: <span class="ident">bool</span>,
     <span class="ident">encoder_control_port_enabled</span>: <span class="ident">bool</span>,
     <span class="ident">encoder_output_port_enabled</span>: <span class="ident">bool</span>,
 
-    <span class="ident">connection</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_T</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">connection</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_T</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">connection_created</span>: <span class="ident">bool</span>,
 
-    <span class="ident">preview</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">preview</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">preview_created</span>: <span class="ident">bool</span>,
 
     <span class="ident">use_encoder</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">SeriousCamera</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SeriousCamera</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SeriousCamera</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="ident">init</span>();
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">camera_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">camera_ptr</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="ident">uninit</span>();
             <span class="kw">let</span> <span class="ident">component</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span> <span class="op">=</span>
                 <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_DEFAULT_CAMERA</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>;
-            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_create</span>(<span class="ident">component</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">camera_ptr</span>);
+            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_create</span>(<span class="ident">component</span>, <span class="ident">camera_ptr</span>.<span class="ident">as_mut_ptr</span>());
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SeriousCamera</span> {
-                    <span class="ident">camera</span>: <span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">camera_ptr</span>).<span class="ident">unwrap</span>(),
-                    <span class="ident">enabled</span>: <span class="bool-val">false</span>,
-                    <span class="ident">camera_port_enabled</span>: <span class="bool-val">false</span>,
-                    <span class="ident">pool</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">mutex</span>: <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Mutex</span>::<span class="ident">new</span>(())),
-                    <span class="ident">still_port_enabled</span>: <span class="bool-val">false</span>,
-                    <span class="comment">// this is really a hack. ideally these objects wouldn&#39;t be structured this way</span>
-                    <span class="ident">encoder_created</span>: <span class="bool-val">false</span>,
-                    <span class="ident">encoder_enabled</span>: <span class="bool-val">false</span>,
-                    <span class="ident">encoder_control_port_enabled</span>: <span class="bool-val">false</span>,
-                    <span class="ident">encoder_output_port_enabled</span>: <span class="bool-val">false</span>,
-                    <span class="ident">encoder</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">connection_created</span>: <span class="bool-val">false</span>,
-                    <span class="ident">connection</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">preview_created</span>: <span class="bool-val">false</span>,
-                    <span class="ident">preview</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">use_encoder</span>: <span class="bool-val">false</span>,
-                }),
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Could not create camera&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>()),
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">camera_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span> <span class="op">=</span> <span class="ident">camera_ptr</span>.<span class="ident">assume_init</span>();
+                    <span class="prelude-val">Ok</span>(<span class="ident">SeriousCamera</span> {
+                        <span class="ident">camera</span>: <span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">camera_ptr</span>).<span class="ident">unwrap</span>(),
+                        <span class="ident">enabled</span>: <span class="bool-val">false</span>,
+                        <span class="ident">camera_port_enabled</span>: <span class="bool-val">false</span>,
+                        <span class="ident">pool</span>: <span class="prelude-val">None</span>,
+                        <span class="ident">mutex</span>: <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Mutex</span>::<span class="ident">new</span>(())),
+                        <span class="ident">still_port_enabled</span>: <span class="bool-val">false</span>,
+                        <span class="comment">// this is really a hack. ideally these objects wouldn&#39;t be structured this way</span>
+                        <span class="ident">encoder_created</span>: <span class="bool-val">false</span>,
+                        <span class="ident">encoder_enabled</span>: <span class="bool-val">false</span>,
+                        <span class="ident">encoder_control_port_enabled</span>: <span class="bool-val">false</span>,
+                        <span class="ident">encoder_output_port_enabled</span>: <span class="bool-val">false</span>,
+                        <span class="ident">encoder</span>: <span class="prelude-val">None</span>,
+                        <span class="ident">connection_created</span>: <span class="bool-val">false</span>,
+                        <span class="ident">connection</span>: <span class="prelude-val">None</span>,
+                        <span class="ident">preview_created</span>: <span class="bool-val">false</span>,
+                        <span class="ident">preview</span>: <span class="prelude-val">None</span>,
+                        <span class="ident">use_encoder</span>: <span class="bool-val">false</span>,
+                    })
+                }
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Could not create camera&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_camera_num</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">num</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_camera_num</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">num</span>: <span class="ident">u8</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">param</span>: <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_INT32_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">param</span>: <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_INT32_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>();
             <span class="ident">param</span>.<span class="ident">hdr</span>.<span class="ident">id</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_NUM</span> <span class="kw">as</span> <span class="ident">u32</span>;
             <span class="ident">param</span>.<span class="ident">hdr</span>.<span class="ident">size</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_INT32_T</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">u32</span>;
             <span class="ident">param</span>.<span class="ident">value</span> <span class="op">=</span> <span class="ident">num</span> <span class="kw">as</span> <span class="ident">i32</span>;
 
-            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set</span>(<span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">control</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">param</span>.<span class="ident">hdr</span>);
+            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set</span>(<span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">control</span>, <span class="kw-2">&amp;</span><span class="ident">param</span>.<span class="ident">hdr</span>);
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="ident">s</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to set camera number&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>())
                 }
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_encoder</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_encoder</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder_ptr</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="ident">uninit</span>();
             <span class="kw">let</span> <span class="ident">component</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span> <span class="op">=</span>
                 <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>;
-            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_create</span>(<span class="ident">component</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">encoder_ptr</span>);
+            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_create</span>(<span class="ident">component</span>, <span class="ident">encoder_ptr</span>.<span class="ident">as_mut_ptr</span>());
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">encoder_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span> <span class="op">=</span> <span class="ident">encoder_ptr</span>.<span class="ident">assume_init</span>();
                     <span class="self">self</span>.<span class="ident">encoder</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">encoder_ptr</span>).<span class="ident">unwrap</span>());
                     <span class="self">self</span>.<span class="ident">encoder_created</span> <span class="op">=</span> <span class="bool-val">true</span>;
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to create encoder&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>()),
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to create encoder&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connect_encoder</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connect_encoder</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">connection_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">connection_ptr</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="ident">uninit</span>();
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_connection_create</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connection_ptr</span>,
+                <span class="ident">connection_ptr</span>.<span class="ident">as_mut_ptr</span>(),
                 <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">output</span>.<span class="ident">offset</span>(<span class="ident">MMAL_CAMERA_CAPTURE_PORT</span>),
                 <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">input</span>.<span class="ident">offset</span>(<span class="number">0</span>),
                 <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_FLAG_TUNNELLING</span>
                     <span class="op">|</span> <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT</span>,
             );
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to create camera-&gt;encoder connection&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
+            <span class="kw">let</span> <span class="ident">connection_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_T</span> <span class="op">=</span> <span class="ident">connection_ptr</span>.<span class="ident">assume_init</span>();
             <span class="self">self</span>.<span class="ident">connection</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">connection_ptr</span>).<span class="ident">unwrap</span>());
             <span class="self">self</span>.<span class="ident">connection_created</span> <span class="op">=</span> <span class="bool-val">true</span>;
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_connection_enable</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">connection_ptr</span>);
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to enable camera-&gt;encoder connection&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">s</span>,
-                ).<span class="ident">into</span>()),
+                )
+                .<span class="ident">into</span>()),
             }
             <span class="comment">// Ok(())</span>
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_control_port</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">get_buffers</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_control_port</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">get_buffers</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">cb</span>: <span class="ident">ffi</span>::<span class="ident">MMAL_PORT_BH_CB_T</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">get_buffers</span> {
                 <span class="prelude-val">Some</span>(<span class="ident">camera_buffer_callback</span>)
@@ -1408,36 +1429,36 @@
             };
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_enable</span>(<span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">control</span>, <span class="ident">cb</span>);
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">camera_port_enabled</span> <span class="op">=</span> <span class="bool-val">true</span>;
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(
                     <span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to enable control port&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>(),
                 ),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_encoder_port</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_encoder_port</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_enable</span>(
                 <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">output</span>.<span class="ident">offset</span>(<span class="number">0</span>),
                 <span class="prelude-val">Some</span>(<span class="ident">camera_buffer_callback</span>),
             );
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">encoder_output_port_enabled</span> <span class="op">=</span> <span class="bool-val">true</span>;
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(
                     <span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to enable encoder port&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>(),
                 ),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_buffer_callback</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sender</span>: <span class="ident">mpsc</span>::<span class="ident">SyncSender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;&gt;</span>) {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_buffer_callback</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sender</span>: <span class="ident">mpsc</span>::<span class="ident">SyncSender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">use_encoder</span> {
             (<span class="kw-2">*</span><span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">output</span>.<span class="ident">offset</span>(<span class="number">0</span>))
         } <span class="kw">else</span> {
@@ -1446,36 +1467,36 @@
 
         <span class="kw">let</span> <span class="ident">userdata</span> <span class="op">=</span> <span class="ident">Userdata</span> {
             <span class="ident">pool</span>: <span class="self">self</span>.<span class="ident">pool</span>.<span class="ident">unwrap</span>(),
-            <span class="ident">sender</span>: <span class="ident">sender</span>,
+            <span class="ident">sender</span>,
             <span class="ident">_guard</span>: <span class="ident">Arc</span>::<span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">mutex</span>),
         };
 
-        <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">port</span>).<span class="ident">userdata</span> <span class="op">!=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>() {
+        <span class="kw">if</span> <span class="op">!</span>(<span class="kw-2">*</span><span class="ident">port</span>).<span class="ident">userdata</span>.<span class="ident">is_null</span>() {
             <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;port.userdata was not null&quot;</span>);
         }
 
         (<span class="kw-2">*</span><span class="ident">port</span>).<span class="ident">userdata</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">userdata</span>)) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PORT_USERDATA_T</span>;
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_still_port</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span>, <span class="ident">ffi</span>::<span class="ident">MMAL_STATUS_T</span>::<span class="ident">Type</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_still_port</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span>, <span class="ident">ffi</span>::<span class="ident">MMAL_STATUS_T</span>::<span class="ident">Type</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_enable</span>(
                 <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">output</span>.<span class="ident">offset</span>(<span class="number">2</span>),
                 <span class="prelude-val">Some</span>(<span class="ident">camera_buffer_callback</span>),
             );
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">still_port_enabled</span> <span class="op">=</span> <span class="bool-val">true</span>;
                     <span class="prelude-val">Ok</span>(<span class="number">1</span>)
                 }
-                <span class="ident">e</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>),
+                <span class="ident">e</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_camera_params</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">info</span>: <span class="kw-2">&amp;</span><span class="ident">CameraInfo</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_camera_params</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">info</span>: <span class="kw-2">&amp;</span><span class="ident">CameraInfo</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cfg</span>: <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_CONFIG_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cfg</span>: <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_CONFIG_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>();
             <span class="ident">cfg</span>.<span class="ident">hdr</span>.<span class="ident">id</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_CONFIG</span> <span class="kw">as</span> <span class="ident">u32</span>;
             <span class="ident">cfg</span>.<span class="ident">hdr</span>.<span class="ident">size</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_CONFIG_T</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">u32</span>;
 
@@ -1491,18 +1512,19 @@
             <span class="ident">cfg</span>.<span class="ident">fast_preview_resume</span> <span class="op">=</span> <span class="number">0</span>;
             <span class="ident">cfg</span>.<span class="ident">use_stc_timestamp</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T</span>::<span class="ident">MMAL_PARAM_TIMESTAMP_MODE_RESET_STC</span>;
 
-            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set</span>(<span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">control</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cfg</span>.<span class="ident">hdr</span>);
+            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set</span>(<span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">control</span>, <span class="kw-2">&amp;</span><span class="ident">cfg</span>.<span class="ident">hdr</span>);
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set control port parmaeter&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">s</span>,
-                ).<span class="ident">into</span>()),
+                )
+                .<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_camera_format</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">settings</span>: <span class="kw-2">&amp;</span><span class="ident">CameraSettings</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_camera_format</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">settings</span>: <span class="kw-2">&amp;</span><span class="ident">CameraSettings</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="self">self</span>.<span class="ident">use_encoder</span> <span class="op">=</span> <span class="ident">settings</span>.<span class="ident">use_encoder</span>;
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoding</span> <span class="op">=</span> <span class="ident">settings</span>.<span class="ident">encoding</span>;
@@ -1523,8 +1545,8 @@
 
             <span class="comment">// On firmware prior to June 2016, camera and video_splitter</span>
             <span class="comment">// had BGR24 and RGB24 support reversed.</span>
-            <span class="kw">if</span> <span class="ident">encoding</span> <span class="op">==</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_RGB24</span> <span class="op">||</span> <span class="ident">encoding</span> <span class="op">==</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_BGR24</span> {
-                <span class="ident">encoding</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">ffi</span>::<span class="ident">mmal_util_rgb_order_fixed</span>(<span class="ident">still_port_ptr</span>) <span class="op">==</span> <span class="number">1</span> {
+            <span class="kw">if</span> <span class="ident">encoding</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_RGB24</span> <span class="op">|</span><span class="op">|</span> <span class="ident">encoding</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_BGR24</span> {
+                <span class="ident">encoding</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">ffi</span>::<span class="ident">mmal_util_rgb_order_fixed</span>(<span class="ident">still_port_ptr</span>) <span class="op">=</span><span class="op">=</span> <span class="number">1</span> {
                     <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_RGB24</span>
                 } <span class="kw">else</span> {
                     <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_BGR24</span>
@@ -1536,12 +1558,10 @@
             <span class="comment">// TODO:</span>
             <span class="comment">//raspicamcontrol_set_all_parameters(camera, &amp;state-&gt;camera_parameters);</span>
 
-            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set_uint32</span>(<span class="ident">control</span>, <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_ISO</span>, <span class="ident">settings</span>.<span class="ident">iso</span>);
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
-                    <span class="string">&quot;Unable to set ISO&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span>
+                <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set_uint32</span>(<span class="ident">control</span>, <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_ISO</span>, <span class="ident">settings</span>.<span class="ident">iso</span>);
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to set ISO&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">status</span>).<span class="ident">into</span>());
             }
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">format</span> <span class="op">=</span> <span class="ident">preview_port</span>.<span class="ident">format</span>;
@@ -1569,11 +1589,12 @@
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_format_commit</span>(<span class="ident">preview_port_ptr</span>);
 
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set preview port format&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
             <span class="kw">if</span> <span class="ident">video_port</span>.<span class="ident">buffer_num</span> <span class="op">&lt;</span> <span class="ident">VIDEO_OUTPUT_BUFFERS_NUM</span> {
@@ -1584,11 +1605,12 @@
             <span class="ident">ffi</span>::<span class="ident">mmal_format_full_copy</span>(<span class="ident">video_port</span>.<span class="ident">format</span>, <span class="ident">preview_port</span>.<span class="ident">format</span>);
             <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_format_commit</span>(<span class="ident">video_port_ptr</span>);
 
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set video port format&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
             <span class="ident">format</span> <span class="op">=</span> <span class="ident">still_port</span>.<span class="ident">format</span>;
@@ -1640,19 +1662,21 @@
                 <span class="ident">enable_zero_copy</span> <span class="kw">as</span> <span class="ident">i32</span>,
             );
 
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Unable to set zero copy to {}&quot;</span>, <span class="ident">settings</span>.<span class="ident">zero_copy</span>),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
             <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_format_commit</span>(<span class="ident">still_port_ptr</span>);
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set still port format&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
             <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">use_encoder</span> {
@@ -1683,25 +1707,27 @@
             }
 
             <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_format_commit</span>(<span class="ident">encoder_out_port_ptr</span>);
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set encoder output port format&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
-            <span class="kw">if</span> <span class="ident">encoding</span> <span class="op">==</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_JPEG</span> <span class="op">||</span> <span class="ident">encoding</span> <span class="op">==</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_MJPEG</span> {
+            <span class="kw">if</span> <span class="ident">encoding</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_JPEG</span> <span class="op">|</span><span class="op">|</span> <span class="ident">encoding</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_ENCODING_MJPEG</span> {
                 <span class="comment">// Set the JPEG quality level</span>
                 <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set_uint32</span>(
                     <span class="ident">encoder_out_port_ptr</span>,
                     <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_JPEG_Q_FACTOR</span>,
                     <span class="number">90</span>,
                 );
-                <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+                <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                         <span class="string">&quot;Unable to set JPEG quality&quot;</span>.<span class="ident">to_owned</span>(),
                         <span class="ident">status</span>,
-                    ).<span class="ident">into</span>());
+                    )
+                    .<span class="ident">into</span>());
                 }
 
                 <span class="comment">// Set the JPEG restart interval</span>
@@ -1710,11 +1736,12 @@
                     <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_JPEG_RESTART_INTERVAL</span>,
                     <span class="number">0</span>,
                 );
-                <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+                <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                         <span class="string">&quot;Unable to set JPEG restart interval&quot;</span>.<span class="ident">to_owned</span>(),
                         <span class="ident">status</span>,
-                    ).<span class="ident">into</span>());
+                    )
+                    .<span class="ident">into</span>());
                 }
             }
 
@@ -1725,15 +1752,15 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_enable</span>(<span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ptr</span>());
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">enabled</span> <span class="op">=</span> <span class="bool-val">true</span>;
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(
                     <span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to enable camera component&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>)
                         .<span class="ident">into</span>(),
                 ),
@@ -1741,48 +1768,50 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_encoder</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_encoder</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_enable</span>(<span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">control</span>, <span class="prelude-val">None</span>);
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">encoder_control_port_enabled</span> <span class="op">=</span> <span class="bool-val">true</span>;
 
                     <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_enable</span>(<span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">as_ptr</span>());
                     <span class="kw">match</span> <span class="ident">status</span> {
-                        <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                        <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                             <span class="self">self</span>.<span class="ident">encoder_enabled</span> <span class="op">=</span> <span class="bool-val">true</span>;
                             <span class="prelude-val">Ok</span>(())
                         }
-                        <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
+                        <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                             <span class="string">&quot;Unable to enable encoder component&quot;</span>.<span class="ident">to_owned</span>(),
                             <span class="ident">s</span>,
-                        ).<span class="ident">into</span>()),
+                        )
+                        .<span class="ident">into</span>()),
                     }
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to enable encoder control port&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">s</span>,
-                ).<span class="ident">into</span>()),
+                )
+                .<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_preview</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_preview</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_enable</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">preview</span>.<span class="ident">unwrap</span>().<span class="ident">as_ptr</span>());
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="comment">// TODO: fix</span>
                     <span class="comment">// self.enabled = true;</span>
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to enable preview&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>()),
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to enable preview&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_pool</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_pool</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">port_ptr</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">use_encoder</span> {
                 <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">output</span>;
@@ -1805,7 +1834,8 @@
                         <span class="ident">CStr</span>::<span class="ident">from_ptr</span>((<span class="kw-2">*</span><span class="ident">port_ptr</span>).<span class="ident">name</span>).<span class="ident">to_string_lossy</span>()
                     ),
                     <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_STATUS_MAX</span>, <span class="comment">// there is no status here unusually</span>
-                ).<span class="ident">into</span>())
+                )
+                .<span class="ident">into</span>())
             } <span class="kw">else</span> {
                 <span class="self">self</span>.<span class="ident">pool</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">pool</span>).<span class="ident">unwrap</span>());
                 <span class="prelude-val">Ok</span>(())
@@ -1813,55 +1843,58 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_preview</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_preview</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="comment">// https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiPreview.c#L70</span>
             <span class="comment">// https://github.com/waveform80/picamera/issues/22</span>
             <span class="comment">// and the commit message that closed issue #22</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">preview_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">preview_ptr</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="ident">uninit</span>();
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_component_create</span>(
                 <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_NULL_SINK</span>.<span class="ident">as_ptr</span>(),
-                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">preview_ptr</span>,
+                <span class="ident">preview_ptr</span>.<span class="ident">as_mut_ptr</span>(),
             );
 
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">preview_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_COMPONENT_T</span> <span class="op">=</span> <span class="ident">preview_ptr</span>.<span class="ident">assume_init</span>();
                     <span class="self">self</span>.<span class="ident">preview</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">preview_ptr</span>).<span class="ident">unwrap</span>());
                     <span class="self">self</span>.<span class="ident">preview_created</span> <span class="op">=</span> <span class="bool-val">true</span>;
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to create null sink for preview&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">s</span>,
-                ).<span class="ident">into</span>()),
+                )
+                .<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connect_preview</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connect_preview</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">connection_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_T</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">connection_ptr</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="ident">uninit</span>();
 
-            <span class="kw">let</span> <span class="ident">preview_output_ptr</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">camera</span>
+            <span class="kw">let</span> <span class="ident">preview_output_ptr</span> <span class="op">=</span> <span class="self">self</span>
+                .<span class="ident">camera</span>
                 .<span class="ident">as_ref</span>()
                 .<span class="ident">output</span>
                 .<span class="ident">offset</span>(<span class="ident">MMAL_CAMERA_PREVIEW_PORT</span> <span class="kw">as</span> <span class="ident">isize</span>);
             <span class="kw">let</span> <span class="ident">preview_input_ptr</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">preview</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">input</span>.<span class="ident">offset</span>(<span class="number">0</span>);
 
             <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_connection_create</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connection_ptr</span>,
+                <span class="ident">connection_ptr</span>.<span class="ident">as_mut_ptr</span>(),
                 <span class="kw-2">*</span><span class="ident">preview_output_ptr</span>,
                 <span class="kw-2">*</span><span class="ident">preview_input_ptr</span>,
                 <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_FLAG_TUNNELLING</span>
                     <span class="op">|</span> <span class="ident">ffi</span>::<span class="ident">MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT</span>,
             );
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="comment">// self.preview = Unique::new(&amp;mut *preview_ptr);</span>
                     <span class="comment">// self.preview_created = true;</span>
                     <span class="prelude-val">Ok</span>(())
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(
                     <span class="ident">MmalError</span>::<span class="ident">with_status</span>(<span class="string">&quot;Unable to connect preview ports&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">s</span>).<span class="ident">into</span>(),
                 ),
             }
@@ -1871,7 +1904,7 @@
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">send_buffers</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">buffer_port_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PORT_T</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">num</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_queue_length</span>(<span class="self">self</span>.<span class="ident">pool</span>.<span class="ident">unwrap</span>().<span class="ident">as_ref</span>().<span class="ident">queue</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>);
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;debug&quot;</span>)]</span>
         <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;got length {}&quot;</span>, <span class="ident">num</span>);
@@ -1892,14 +1925,16 @@
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Unable to get a required buffer {} from pool queue&quot;</span>, <span class="ident">i</span>),
                     <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_STATUS_MAX</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             } <span class="kw">else</span> {
                 <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_send_buffer</span>(<span class="ident">buffer_port_ptr</span>, <span class="ident">buffer</span>);
-                <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+                <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                         <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Unable to send a buffer to camera output port ({})&quot;</span>, <span class="ident">i</span>),
                         <span class="ident">status</span>,
-                    ).<span class="ident">into</span>());
+                    )
+                    .<span class="ident">into</span>());
                 }
             }
         }
@@ -1910,7 +1945,7 @@
     <span class="kw">fn</span> <span class="ident">do_take</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">buffer_port_ptr</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PORT_T</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">mpsc</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;&gt;</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">mpsc</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">mmal_port_parameter_set_uint32</span>(
                 <span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">control</span>,
@@ -1918,21 +1953,20 @@
                 <span class="number">0</span>, <span class="comment">// 0 = auto</span>
             );
 
-            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
+            <span class="kw">if</span> <span class="ident">status</span> <span class="op">!</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set shutter speed&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">status</span>,
-                ).<span class="ident">into</span>());
+                )
+                .<span class="ident">into</span>());
             }
 
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">use_encoder</span> {
                 <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">encoder_output_port_enabled</span> {
                     <span class="self">self</span>.<span class="ident">enable_encoder_port</span>().<span class="ident">unwrap</span>();
                 }
-            } <span class="kw">else</span> {
-                <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">still_port_enabled</span> {
-                    <span class="self">self</span>.<span class="ident">enable_still_port</span>().<span class="ident">unwrap</span>();
-                }
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">still_port_enabled</span> {
+                <span class="self">self</span>.<span class="ident">enable_still_port</span>().<span class="ident">unwrap</span>();
             }
 
             <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">camera</span>.<span class="ident">as_ref</span>().<span class="ident">output</span>;
@@ -1966,21 +2000,22 @@
             <span class="comment">// }</span>
 
             <span class="kw">match</span> <span class="ident">status</span> {
-                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=&gt;</span> {
+                <span class="ident">MMAL_STATUS_T</span>::<span class="ident">MMAL_SUCCESS</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;debug&quot;</span>)]</span>
                     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Started capture&quot;</span>);
 
                     <span class="prelude-val">Ok</span>(<span class="ident">receiver</span>)
                 }
-                <span class="ident">s</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
+                <span class="ident">s</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">MmalError</span>::<span class="ident">with_status</span>(
                     <span class="string">&quot;Unable to set camera capture boolean&quot;</span>.<span class="ident">to_owned</span>(),
                     <span class="ident">s</span>,
-                ).<span class="ident">into</span>()),
+                )
+                .<span class="ident">into</span>()),
             }
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">mpsc</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;&gt;</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">mpsc</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> {
             <span class="self">self</span>.<span class="ident">mutex</span>.<span class="ident">raw</span>().<span class="ident">lock</span>();
         }
@@ -1988,15 +2023,13 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer_port_ptr</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
         <span class="kw">let</span> <span class="ident">mutex</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">mutex</span>);
 
-        <span class="macro">defer_on_unwind</span><span class="macro">!</span>{{
+        <span class="macro">defer_on_unwind</span><span class="macro">!</span> {{
             <span class="kw">unsafe</span> { <span class="ident">mutex</span>.<span class="ident">force_unlock</span>() };
         }}
 
         <span class="self">self</span>.<span class="ident">do_take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer_port_ptr</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
             <span class="kw">unsafe</span> {
-                <span class="kw">if</span> <span class="ident">buffer_port_ptr</span> <span class="op">!=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>()
-                    <span class="op">&amp;&amp;</span> (<span class="kw-2">*</span><span class="ident">buffer_port_ptr</span>).<span class="ident">userdata</span> <span class="op">!=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>()
-                {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">buffer_port_ptr</span>.<span class="ident">is_null</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="op">!</span>(<span class="kw-2">*</span><span class="ident">buffer_port_ptr</span>).<span class="ident">userdata</span>.<span class="ident">is_null</span>() {
                     <span class="ident">drop_port_userdata</span>(<span class="ident">buffer_port_ptr</span>);
                 }
                 <span class="self">self</span>.<span class="ident">mutex</span>.<span class="ident">force_unlock</span>();
@@ -2023,7 +2056,8 @@
         <span class="comment">// Check end of frame or error</span>
         <span class="kw">if</span> ((<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">flags</span>
             <span class="op">&amp;</span> (<span class="ident">ffi</span>::<span class="ident">MMAL_BUFFER_HEADER_FLAG_FRAME_END</span>
-                <span class="op">|</span> <span class="ident">ffi</span>::<span class="ident">MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED</span>)) <span class="op">&gt;</span> <span class="number">0</span>
+                <span class="op">|</span> <span class="ident">ffi</span>::<span class="ident">MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED</span>))
+            <span class="op">&gt;</span> <span class="number">0</span>
         {
             <span class="ident">complete</span> <span class="op">=</span> <span class="bool-val">true</span>;
         }
@@ -2061,10 +2095,10 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;debug&quot;</span>)]</span>
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Camera control callback  cmd=0x{:08x}&quot;</span>, (<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">cmd</span>);
 
-    <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">cmd</span> <span class="op">==</span> <span class="ident">ffi</span>::<span class="ident">MMAL_EVENT_PARAMETER_CHANGED</span> {
+    <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">cmd</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_EVENT_PARAMETER_CHANGED</span> {
         <span class="kw">let</span> <span class="ident">param</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_EVENT_PARAMETER_CHANGED_T</span> <span class="op">=</span>
             (<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_EVENT_PARAMETER_CHANGED_T</span>;
-        <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">param</span>).<span class="ident">hdr</span>.<span class="ident">id</span> <span class="op">==</span> (<span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_SETTINGS</span> <span class="kw">as</span> <span class="ident">u32</span>) {
+        <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">param</span>).<span class="ident">hdr</span>.<span class="ident">id</span> <span class="op">=</span><span class="op">=</span> (<span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_SETTINGS</span> <span class="kw">as</span> <span class="ident">u32</span>) {
             <span class="kw">let</span> <span class="ident">settings_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_SETTINGS_T</span> <span class="op">=</span>
                 <span class="ident">param</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_SETTINGS_T</span>;
             <span class="kw">let</span> <span class="ident">_settings</span>: <span class="ident">ffi</span>::<span class="ident">MMAL_PARAMETER_CAMERA_SETTINGS_T</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">settings_ptr</span>;
@@ -2086,7 +2120,7 @@
                 <span class="ident">_settings</span>.<span class="ident">awb_blue_gain</span>.<span class="ident">den</span>
             );
         }
-    } <span class="kw">else</span> <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">cmd</span> <span class="op">==</span> <span class="ident">ffi</span>::<span class="ident">MMAL_EVENT_ERROR</span> {
+    } <span class="kw">else</span> <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">buffer</span>).<span class="ident">cmd</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">MMAL_EVENT_ERROR</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;debug&quot;</span>)]</span>
         <span class="macro">println</span><span class="macro">!</span>(
             <span class="string">&quot;No data received from sensor. Check all connections, including the Sunny one on the camera board&quot;</span>
@@ -2171,7 +2205,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SimpleCamera</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">info</span>: <span class="ident">CameraInfo</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SimpleCamera</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">info</span>: <span class="ident">CameraInfo</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SimpleCamera</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">sc</span> <span class="op">=</span> <span class="ident">SeriousCamera</span>::<span class="ident">new</span>()<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="ident">SimpleCamera</span> {
@@ -2182,17 +2216,17 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">settings</span>: <span class="ident">CameraSettings</span>) {
-        <span class="kw">if</span> <span class="ident">settings</span>.<span class="ident">width</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">if</span> <span class="ident">settings</span>.<span class="ident">width</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
             <span class="ident">settings</span>.<span class="ident">width</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">max_width</span>;
         }
-        <span class="kw">if</span> <span class="ident">settings</span>.<span class="ident">height</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">if</span> <span class="ident">settings</span>.<span class="ident">height</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
             <span class="ident">settings</span>.<span class="ident">height</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">max_height</span>;
         }
 
         <span class="self">self</span>.<span class="ident">settings</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">settings</span>);
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">activate</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">activate</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">settings</span>.<span class="ident">is_none</span>() {
             <span class="self">self</span>.<span class="ident">configure</span>(<span class="ident">CameraSettings</span>::<span class="ident">default</span>());
         }
@@ -2224,19 +2258,19 @@
     <span class="doccomment">/// Captures a single image from the camera synchronously and writes it to the given `Write` trait.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If there is an error</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_one_writer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_one_writer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw">dyn</span> <span class="ident">Write</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">serious</span>.<span class="ident">take</span>()<span class="question-mark">?</span>;
 
         <span class="kw">loop</span> {
             <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">recv</span>()<span class="question-mark">?</span>;
             <span class="kw">match</span> <span class="ident">result</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">buf</span>) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">buf</span>) <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="ident">writer</span>.<span class="ident">write_all</span>(<span class="ident">buf</span>.<span class="ident">get_bytes</span>())<span class="question-mark">?</span>;
                     <span class="kw">if</span> <span class="ident">buf</span>.<span class="ident">is_complete</span>() {
                         <span class="kw">break</span>;
                     }
                 }
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
+                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">break</span>,
             };
         }
 
@@ -2246,7 +2280,7 @@
     <span class="doccomment">/// Captures a single image from the camera synchronously.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If successful then returns `Ok` with a `Vec&lt;u8&gt;` containing the bytes of the image.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_one</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_one</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">CameraError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="self">self</span>.<span class="ident">take_one_writer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">v</span>)
@@ -2263,5 +2297,5 @@
         (<span class="kw-2">*</span><span class="ident">port</span>).<span class="ident">userdata</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">MMAL_PORT_USERDATA_T</span>;
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rascam";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rascam";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
