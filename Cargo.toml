@@ -18,6 +18,10 @@ mmal-sys = "0.1.0-3"
 libc = "0.2"
 parking_lot = "0.10"
 scopeguard = "1.0"
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "0.2", features = ["full"] }
 
 [features]
 default = []
