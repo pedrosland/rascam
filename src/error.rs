@@ -15,8 +15,8 @@ pub struct MmalError {
 impl MmalError {
     pub fn with_status(message: String, status_code: MMAL_STATUS_T::Type) -> MmalError {
         MmalError {
-            message: message,
-            status_code: status_code,
+            message,
+            status_code,
         }
     }
 

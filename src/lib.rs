@@ -77,16 +77,16 @@ impl BufferGuard {
         complete: bool,
     ) -> BufferGuard {
         BufferGuard {
-            port: port,
-            buffer: buffer,
-            pool: pool,
-            complete: complete,
+            port,
+            buffer,
+            pool,
+            complete,
         }
     }
 
     /// Indicates if an image has been captured and this is the end of the image.
     pub fn is_complete(&self) -> bool {
-        return self.complete;
+        self.complete
     }
 
     /// Creates a slice representing the raw bytes of the image.
@@ -131,7 +131,7 @@ impl Drop for BufferGuard {
             }
 
             if self.complete {
-                if (*self.port).userdata != ptr::null_mut() {
+                if !(*self.port).userdata.is_null() {
                     drop_port_userdata(self.port);
                 }
                 #[cfg(feature = "debug")]
@@ -208,7 +208,7 @@ impl SeriousCamera {
             param.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_INT32_T>() as u32;
             param.value = num as i32;
 
-            let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut param.hdr);
+            let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &param.hdr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
                 s => {
@@ -317,11 +317,11 @@ impl SeriousCamera {
 
         let userdata = Userdata {
             pool: self.pool.unwrap(),
-            sender: sender,
+            sender,
             _guard: Arc::clone(&self.mutex),
         };
 
-        if (*port).userdata != ptr::null_mut() {
+        if !(*port).userdata.is_null() {
             panic!("port.userdata was not null");
         }
 
@@ -362,7 +362,7 @@ impl SeriousCamera {
             cfg.fast_preview_resume = 0;
             cfg.use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
 
-            let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &mut cfg.hdr);
+            let status = ffi::mmal_port_parameter_set(self.camera.as_ref().control, &cfg.hdr);
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
                 s => Err(MmalError::with_status(
@@ -815,10 +815,8 @@ impl SeriousCamera {
                 if !self.encoder_output_port_enabled {
                     self.enable_encoder_port().unwrap();
                 }
-            } else {
-                if !self.still_port_enabled {
-                    self.enable_still_port().unwrap();
-                }
+            } else if !self.still_port_enabled {
+                self.enable_still_port().unwrap();
             }
 
             let output = self.camera.as_ref().output;
@@ -881,9 +879,7 @@ impl SeriousCamera {
 
         self.do_take(&mut buffer_port_ptr).map_err(|e| {
             unsafe {
-                if buffer_port_ptr != ptr::null_mut()
-                    && (*buffer_port_ptr).userdata != ptr::null_mut()
-                {
+                if !buffer_port_ptr.is_null() && !(*buffer_port_ptr).userdata.is_null() {
                     drop_port_userdata(buffer_port_ptr);
                 }
                 self.mutex.force_unlock();

@@ -82,7 +82,7 @@ pub fn info() -> Result<Info, CameraError> {
                                 port_id: cam.port_id,
                                 max_width: cam.max_width,
                                 max_height: cam.max_height,
-                                lens_present: if cam.lens_present == 1 { true } else { false },
+                                lens_present: cam.lens_present == 1,
                                 camera_name: CStr::from_ptr(cam.camera_name.as_ptr())
                                     .to_string_lossy()
                                     .into_owned(),
@@ -91,7 +91,7 @@ pub fn info() -> Result<Info, CameraError> {
 
                         ffi::mmal_component_destroy(component);
 
-                        Ok(Info { cameras: cameras })
+                        Ok(Info { cameras })
                     }
                     s => {
                         ffi::mmal_component_destroy(component);
