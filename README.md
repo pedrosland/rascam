@@ -12,24 +12,20 @@ There are three main components in this library:
 
 ## Documentation and examples
 
-Please see the [documentation](https://pedrosland.github.io/rascam/) and [examples](https://github.com/pedrosland/rascam/tree/master/examples)
+Please see the [documentation](https://pedrosland.github.io/rascam/) and [examples](https://github.com/pedrosland/rascam/tree/master/examples).
 
 ## Usage
 
-Add the following to your Cargo.toml, changing `0.0.1` for the latest release:
+Add the following to your Cargo.toml, changing `0.0.2` for the latest release:
 
 ```toml
 [dependencies]
-rascam = "0.0.1"
+rascam = "0.0.2"
 ```
 
-Import this crate into your lib.rs or main.rs file:
+Check out the [SimpleCamera example](https://github.com/pedrosland/rascam/blob/master/examples/simple.rs) to get started quickly.
 
-```rust
-extern crate rascam;
-```
-
-If things are crashing or producing unexpected results there is a feature flag which enables some print statements which may help to debug an issue:
+If things are crashing or producing unexpected results there is a feature which enables some print statements which may help to debug an issue:
 
 ```toml
 [dependencies]
