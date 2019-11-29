@@ -58,7 +58,7 @@ git commit --quiet -m "Deploy to GitHub Pages: ${SHA}"
 cd ..
 
 # Get the deploy key by using Travis's stored variables to decrypt travis_deploy_key.enc
-openssl aes-256-cbc -K $encrypted_62a1c2a70be7_key -iv $encrypted_62a1c2a70be7_iv -in ci/travis_deploy_key.enc -out ci/travis_deploy_key -d
+openssl aes-256-cbc -K $encrypted_84ee7e240240_key -iv $encrypted_84ee7e240240_iv -in ci/travis_deploy_key.enc -out ci/travis_deploy_key -d
 chmod 600 ci/travis_deploy_key
 
 # Push (deploy)
