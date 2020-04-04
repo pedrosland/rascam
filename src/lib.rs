@@ -4,6 +4,7 @@
 //! in a friendly way.
 //!
 //! [mmal-sys]: https://crates.io/crates/mmal-sys
+#![allow(clippy::collapsible_if)]
 
 use mmal_sys as ffi;
 #[macro_use(defer_on_unwind)]
@@ -318,16 +319,21 @@ impl SeriousCamera {
         }
     }
 
+    /// Set callback function to be called when there is data from the camera.
+    ///
+    /// # Safety
+    /// This function will be passed to C so you are responsible for it.
+    /// Make no assumptions about when this will be called or what thread it will be called from.
     pub unsafe fn set_buffer_callback(&mut self, sender: SenderKind) {
         let port = if self.use_encoder {
-            (*self.encoder.unwrap().as_ref().output.offset(0))
+            *self.encoder.unwrap().as_ref().output.offset(0)
         } else {
-            (*self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT))
+            *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT)
         };
 
         let userdata = Userdata {
             pool: self.pool.unwrap(),
-            sender: sender,
+            sender,
             _guard: Arc::clone(&self.mutex),
         };
 
@@ -935,8 +941,8 @@ impl SeriousCamera {
         self.do_take(&mut buffer_port_ptr, true)
             .map_err(|e| {
                 unsafe {
-                    if buffer_port_ptr != ptr::null_mut()
-                        && (*buffer_port_ptr).userdata != ptr::null_mut()
+                    if buffer_port_ptr.is_null()
+                        && (*buffer_port_ptr).userdata.is_null()
                     {
                         drop_port_userdata(buffer_port_ptr);
                     }
@@ -951,11 +957,13 @@ impl SeriousCamera {
     }
 }
 
+#[allow(clippy::let_unit_value)]
 unsafe extern "C" fn camera_buffer_callback(
     port: *mut ffi::MMAL_PORT_T,
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
 ) {
     let bytes_to_write = (*buffer).length;
+    #[allow(clippy::cast_ptr_alignment)]
     let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
     let mut complete = false;
 
@@ -995,7 +1003,7 @@ unsafe extern "C" fn camera_buffer_callback(
                 }
             }
         } else {
-            let _result = match &mut userdata.sender {
+            match &mut userdata.sender {
                 SenderKind::AsyncSender(sender) => sender.close_channel(),
                 SenderKind::SyncSender(sender) => {
                     if let Err(_err) = sender.send(None) {
@@ -1003,7 +1011,7 @@ unsafe extern "C" fn camera_buffer_callback(
                         println!("Got err sending None: {}", _err);
                     }
                 }
-            };
+            }
         }
     } else {
         #[cfg(feature = "debug")]
@@ -1011,6 +1019,7 @@ unsafe extern "C" fn camera_buffer_callback(
     }
 }
 
+#[allow(clippy::if_same_then_else)]
 unsafe extern "C" fn camera_control_callback(
     _port: *mut ffi::MMAL_PORT_T,
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
@@ -1018,9 +1027,10 @@ unsafe extern "C" fn camera_control_callback(
     // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L525
 
     #[cfg(feature = "debug")]
-    println!("Camera control callback  cmd=0x{:08x}", (*buffer).cmd);
+    println!("Camera control callback cmd=0x{:08x}", (*buffer).cmd);
 
     if (*buffer).cmd == ffi::MMAL_EVENT_PARAMETER_CHANGED {
+        #[allow(clippy::cast_ptr_alignment)]
         let param: *mut ffi::MMAL_EVENT_PARAMETER_CHANGED_T =
             (*buffer).data as *mut ffi::MMAL_EVENT_PARAMETER_CHANGED_T;
         if (*param).hdr.id == (ffi::MMAL_PARAMETER_CAMERA_SETTINGS as u32) {
@@ -1234,6 +1244,7 @@ impl SimpleCamera {
 /// # Safety
 ///
 /// `port.userdata` must be non-null or this will dereference a null pointer.
+#[allow(clippy::cast_ptr_alignment)]
 pub unsafe fn drop_port_userdata(port: *mut ffi::MMAL_PORT_T) {
     let userdata: Box<Userdata> = Box::from_raw((*port).userdata as *mut Userdata);
     userdata._guard.force_unlock();
