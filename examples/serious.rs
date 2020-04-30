@@ -24,7 +24,7 @@ fn serious(info: &CameraInfo) {
     println!("encoder created");
     camera.enable_control_port(true).unwrap();
     println!("camera control port enabled");
-    camera.set_camera_params(info).unwrap();
+    camera.set_camera_params(info, true, 0).unwrap();
     println!("camera params set");
 
     let settings = CameraSettings {
@@ -34,6 +34,9 @@ fn serious(info: &CameraInfo) {
         iso: ISO_AUTO,
         zero_copy: true,
         use_encoder: false,
+        framerate: 0,
+        video_level: 0,
+        video_profile: 0,
     };
 
     camera.set_camera_format(&settings).unwrap();

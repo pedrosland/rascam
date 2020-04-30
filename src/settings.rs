@@ -39,13 +39,19 @@ pub const ISO_3200: ISO = 3200;
 /// ```
 #[derive(Debug)]
 pub struct CameraSettings {
+    // shared
     pub encoding: c_uint,
     pub width: u32,  // 0 = max
     pub height: u32, // 0 = max
-    pub iso: ISO,
     pub zero_copy: bool,
+    // image
+    pub iso: ISO,
     /// `use_encoder` will go away
     pub use_encoder: bool,
+    // video
+    pub framerate: u32,
+    pub video_profile: ffi::MMAL_VIDEO_PROFILE_T,
+    pub video_level: ffi::MMAL_VIDEO_LEVEL_T,
 }
 
 impl Default for CameraSettings {
@@ -57,6 +63,9 @@ impl Default for CameraSettings {
             iso: ISO_AUTO,
             zero_copy: false,
             use_encoder: true,
+            framerate: 30,
+            video_profile: ffi::MMAL_VIDEO_PROFILE_H264_HIGH,
+            video_level: ffi::MMAL_VIDEO_LEVEL_H264_4,
         }
     }
 }

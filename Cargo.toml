@@ -14,7 +14,7 @@ build = "build.rs"
 edition = "2018"
 
 [dependencies]
-mmal-sys = "0.1.0-3"
+mmal-sys = { version = "0.1.0-3", git = "https://github.com/pedrosland/mmal-sys", rev = "a1c24d69c1be3ee361c6cb030783a6493faf6bd1" }
 libc = "0.2"
 parking_lot = "0.10"
 scopeguard = "1.0"

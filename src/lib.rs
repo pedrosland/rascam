@@ -38,11 +38,11 @@ const MMAL_CAMERA_PREVIEW_PORT: isize = 0;
 const MMAL_CAMERA_VIDEO_PORT: isize = 1;
 const MMAL_CAMERA_CAPTURE_PORT: isize = 2;
 
-/// Video render needs at least 2 buffers.
-const VIDEO_OUTPUT_BUFFERS_NUM: u32 = 3;
-
 const PREVIEW_FRAME_RATE_NUM: i32 = 0;
 const PREVIEW_FRAME_RATE_DEN: i32 = 1;
+
+/// Video render needs at least 2 buffers.
+const VIDEO_OUTPUT_BUFFERS_NUM: u32 = 3;
 
 // TODO: what about the rest of these formats?
 pub use ffi::MMAL_ENCODING_GIF;
@@ -52,6 +52,12 @@ pub use ffi::MMAL_ENCODING_PNG;
 pub use ffi::MMAL_ENCODING_OPAQUE;
 
 pub use ffi::MMAL_ENCODING_RGB24;
+
+pub use ffi::MMAL_ENCODING_H264;
+
+// TODO: do something about these:
+pub use ffi::MMAL_VIDEO_LEVEL_H264_4;
+pub use ffi::MMAL_VIDEO_PROFILE_H264_HIGH;
 
 struct Userdata {
     pool: NonNull<ffi::MMAL_POOL_T>,
@@ -77,7 +83,7 @@ pub struct BufferGuard {
     port: *mut ffi::MMAL_PORT_T,
     buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
     pool: NonNull<ffi::MMAL_POOL_T>,
-    complete: bool,
+    frame_end: bool,
 }
 
 impl BufferGuard {
@@ -85,19 +91,19 @@ impl BufferGuard {
         port: *mut ffi::MMAL_PORT_T,
         buffer: *mut ffi::MMAL_BUFFER_HEADER_T,
         pool: NonNull<ffi::MMAL_POOL_T>,
-        complete: bool,
+        frame_end: bool,
     ) -> BufferGuard {
         BufferGuard {
             port,
             buffer,
             pool,
-            complete,
+            frame_end,
         }
     }
 
     /// Indicates if an image has been captured and this is the end of the image.
-    pub fn is_complete(&self) -> bool {
-        self.complete
+    pub fn is_frame_end(&self) -> bool {
+        self.frame_end
     }
 
     /// Creates a slice representing the raw bytes of the image.
@@ -140,14 +146,6 @@ impl Drop for BufferGuard {
                     println!("Unable to return the buffer to the port");
                 }
             }
-
-            if self.complete {
-                if !(*self.port).userdata.is_null() {
-                    drop_port_userdata(self.port);
-                }
-                #[cfg(feature = "debug")]
-                println!("complete");
-            }
         }
     }
 }
@@ -174,6 +172,8 @@ pub struct SeriousCamera {
     preview_created: bool,
 
     use_encoder: bool,
+    is_capturing: bool,
+    is_video: bool,
 }
 
 impl SeriousCamera {
@@ -205,6 +205,8 @@ impl SeriousCamera {
                         preview_created: false,
                         preview: None,
                         use_encoder: false,
+                        is_capturing: false,
+                        is_video: false,
                     })
                 }
                 s => Err(MmalError::with_status("Could not create camera".to_owned(), s).into()),
@@ -247,12 +249,40 @@ impl SeriousCamera {
         }
     }
 
+    pub fn create_video_encoder(&mut self) -> Result<(), CameraError> {
+        self.is_video = true;
+
+        unsafe {
+            let mut encoder_ptr = MaybeUninit::uninit();
+            let component: *const c_char =
+                ffi::MMAL_COMPONENT_DEFAULT_VIDEO_ENCODER.as_ptr() as *const c_char;
+            let status = ffi::mmal_component_create(component, encoder_ptr.as_mut_ptr());
+            match status {
+                MMAL_STATUS_T::MMAL_SUCCESS => {
+                    let encoder_ptr: *mut ffi::MMAL_COMPONENT_T = encoder_ptr.assume_init();
+                    self.encoder = Some(NonNull::new(encoder_ptr).unwrap());
+                    self.encoder_created = true;
+                    Ok(())
+                }
+                s => Err(
+                    MmalError::with_status("Unable to create video encoder".to_owned(), s).into(),
+                ),
+            }
+        }
+    }
+
     pub fn connect_encoder(&mut self) -> Result<(), CameraError> {
         unsafe {
             let mut connection_ptr = MaybeUninit::uninit();
+            let port = if self.is_video {
+                *self.camera.as_ref().output.offset(MMAL_CAMERA_VIDEO_PORT)
+            } else {
+                *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT)
+            };
+
             let status = ffi::mmal_connection_create(
                 connection_ptr.as_mut_ptr(),
-                *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT),
+                port,
                 *self.encoder.unwrap().as_ref().input.offset(0),
                 ffi::MMAL_CONNECTION_FLAG_TUNNELLING
                     | ffi::MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT,
@@ -269,6 +299,7 @@ impl SeriousCamera {
             self.connection = Some(NonNull::new(connection_ptr).unwrap());
             self.connection_created = true;
             let status = ffi::mmal_connection_enable(&mut *connection_ptr);
+
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => Ok(()),
                 s => Err(MmalError::with_status(
@@ -277,7 +308,6 @@ impl SeriousCamera {
                 )
                 .into()),
             }
-            // Ok(())
         }
     }
 
@@ -360,7 +390,7 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_params(&mut self, info: &CameraInfo) -> Result<(), CameraError> {
+    pub fn set_camera_params(&mut self, info: &CameraInfo, one_shot_stills: bool, framerate: u32) -> Result<(), CameraError> {
         unsafe {
             let mut cfg: ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = mem::zeroed();
             cfg.hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
@@ -370,10 +400,10 @@ impl SeriousCamera {
             cfg.max_stills_w = info.max_width;
             cfg.max_stills_h = info.max_height;
             cfg.stills_yuv422 = 0;
-            cfg.one_shot_stills = 1;
+            cfg.one_shot_stills = if one_shot_stills { 1 } else { 0 };
             cfg.max_preview_video_w = info.max_width;
             cfg.max_preview_video_h = info.max_height;
-            cfg.num_preview_video_frames = 1;
+            cfg.num_preview_video_frames = 3 + std::cmp::max(0, (framerate-30)/10);
             cfg.stills_capture_circular_buffer_height = 0;
             cfg.fast_preview_resume = 0;
             cfg.use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
@@ -387,6 +417,224 @@ impl SeriousCamera {
                 )
                 .into()),
             }
+        }
+    }
+
+    pub fn set_video_camera_format(
+        &mut self,
+        settings: &CameraSettings,
+    ) -> Result<(), CameraError> {
+        unsafe {
+            self.use_encoder = settings.use_encoder;
+            let encoding = settings.encoding;
+
+            let output = self.camera.as_ref().output;
+            let output_num = self.camera.as_ref().output_num;
+            assert_eq!(output_num, 3, "Expected camera to have 3 outputs");
+
+            let preview_port_ptr =
+                *(output.offset(MMAL_CAMERA_PREVIEW_PORT) as *mut *mut ffi::MMAL_PORT_T);
+            let video_port_ptr =
+                *(output.offset(MMAL_CAMERA_VIDEO_PORT) as *mut *mut ffi::MMAL_PORT_T);
+            let still_port_ptr =
+                *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T);
+            let preview_port = *preview_port_ptr;
+            let video_port = *video_port_ptr;
+            let still_port = *still_port_ptr;
+
+            let control = self.camera.as_ref().control;
+
+            // TODO:
+            //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
+
+            let status =
+                ffi::mmal_port_parameter_set_uint32(control, ffi::MMAL_PARAMETER_ISO, settings.iso);
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status("Unable to set ISO".to_owned(), status).into());
+            }
+
+            let mut format = preview_port.format;
+
+            (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+
+            // TODO: MMAL_PARAMETER_FPS_RANGE
+            // TODO: dynamic frame rate
+
+            // es = elementary stream
+            let mut es = (*format).es;
+
+            // Use same dimensions as the video
+            (*es).video.width = ffi::vcos_align_up(settings.width, 32);
+            (*es).video.height = ffi::vcos_align_up(settings.height, 16);
+            (*es).video.crop.x = 0;
+            (*es).video.crop.y = 0;
+            (*es).video.crop.width = settings.width as i32;
+            (*es).video.crop.height = settings.height as i32;
+            (*es).video.frame_rate.num = settings.framerate as i32;
+            (*es).video.frame_rate.den = PREVIEW_FRAME_RATE_DEN;
+
+            let mut status = ffi::mmal_port_format_commit(preview_port_ptr);
+
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set preview port format".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            format = video_port.format;
+
+            (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+
+            es = (*format).es;
+
+            // This should be a copy of the above.
+            // Note that the format copy function doesn't seem to copy everything???
+            (*es).video.width = ffi::vcos_align_up(settings.width, 32);
+            (*es).video.height = ffi::vcos_align_up(settings.height, 16);
+            (*es).video.crop.x = 0;
+            (*es).video.crop.y = 0;
+            (*es).video.crop.width = settings.width as i32;
+            (*es).video.crop.height = settings.height as i32;
+            (*es).video.frame_rate.num = settings.framerate as i32;
+            (*es).video.frame_rate.den = PREVIEW_FRAME_RATE_DEN;
+
+            if video_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
+                (*video_port_ptr).buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
+            }
+            status = ffi::mmal_port_format_commit(video_port_ptr);
+
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set video port format".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            format = still_port.format;
+
+            (*format).encoding = ffi::MMAL_ENCODING_OPAQUE;
+            (*format).encoding_variant = ffi::MMAL_ENCODING_I420;
+
+            es = (*format).es;
+
+            (*es).video.width = ffi::vcos_align_up(settings.width, 32);
+            (*es).video.height = ffi::vcos_align_up(settings.height, 16);
+            (*es).video.crop.x = 0;
+            (*es).video.crop.y = 0;
+            (*es).video.crop.width = settings.width as i32;
+            (*es).video.crop.height = settings.height as i32;
+            (*es).video.frame_rate.num = 0;
+            (*es).video.frame_rate.den = 1;
+
+            // TODO: should this be before or after the commit?
+            if still_port.buffer_size < still_port.buffer_size_min {
+                (*still_port_ptr).buffer_size = still_port.buffer_size_min;
+            }
+
+            (*still_port_ptr).buffer_num = still_port.buffer_num_recommended;
+
+            if still_port.buffer_num < VIDEO_OUTPUT_BUFFERS_NUM {
+                (*still_port_ptr).buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
+            }
+
+            status = ffi::mmal_port_format_commit(still_port_ptr);
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set still port format".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            if !self.use_encoder {
+                return Ok(());
+            }
+
+            let encoder_in_port_ptr =
+                *(self.encoder.unwrap().as_ref().input.offset(0) as *mut *mut ffi::MMAL_PORT_T);
+            let encoder_out_port_ptr =
+                *(self.encoder.unwrap().as_ref().output.offset(0) as *mut *mut ffi::MMAL_PORT_T);
+            let encoder_in_port = *encoder_in_port_ptr;
+            let encoder_out_port = *encoder_out_port_ptr;
+
+            (*(*encoder_out_port.format).es).video.frame_rate.num = 1966080;
+
+            // We want same format on input and output
+            ffi::mmal_format_copy(encoder_out_port.format, encoder_in_port.format);
+
+            format = encoder_out_port.format;
+            (*format).encoding = encoding;
+            (*format).bitrate = 17000000;
+
+            es = (*format).es;
+
+            // We need to set the frame rate on output to 0, to ensure it gets
+            // updated correctly from the input framerate when port connected
+            (*es).video.frame_rate.num = 1966080;
+            (*es).video.frame_rate.den = 1;
+            (*es).video.height = 1080;
+
+            if encoding == MMAL_ENCODING_H264 {
+                (*encoder_out_port_ptr).buffer_size = encoder_out_port.buffer_size_recommended;
+            } else {
+                (*encoder_out_port_ptr).buffer_size = 256 << 10
+            }
+            if encoder_out_port.buffer_size < encoder_out_port.buffer_size_min {
+                (*encoder_out_port_ptr).buffer_size = encoder_out_port.buffer_size_min;
+            }
+
+            (*encoder_out_port_ptr).buffer_num = encoder_out_port.buffer_num_recommended;
+
+            status = ffi::mmal_port_format_commit(encoder_out_port_ptr);
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set encoder output port format".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            if encoding == ffi::MMAL_ENCODING_JPEG || encoding == ffi::MMAL_ENCODING_MJPEG {
+                // Set the JPEG quality level
+                status = ffi::mmal_port_parameter_set_uint32(
+                    encoder_out_port_ptr,
+                    ffi::MMAL_PARAMETER_JPEG_Q_FACTOR,
+                    90,
+                );
+                if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    return Err(MmalError::with_status(
+                        "Unable to set JPEG quality".to_owned(),
+                        status,
+                    )
+                    .into());
+                }
+
+                // Set the JPEG restart interval
+                status = ffi::mmal_port_parameter_set_uint32(
+                    encoder_out_port_ptr,
+                    ffi::MMAL_PARAMETER_JPEG_RESTART_INTERVAL,
+                    0,
+                );
+                if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    return Err(MmalError::with_status(
+                        "Unable to set JPEG restart interval".to_owned(),
+                        status,
+                    )
+                    .into());
+                }
+            }
+
+            // TODO: various H264 encoding settings
+            // eg MMAL_PARAMETER_INTRAPERIOD, MMAL_PARAMETER_MB_ROWS_PER_SLICE, MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT
+            // **MMAL_PARAMETER_VIDEO_PROFILE_T**
+            // MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_HEADER, MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_VECTORS, MMAL_PARAMETER_VIDEO_INTRA_REFRESH_T
+
+            Ok(())
         }
     }
 
@@ -687,6 +935,9 @@ impl SeriousCamera {
                 *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T)
             };
 
+            #[cfg(feature = "debug")]
+            println!("create pool buffer_num: {}, buffer_size: {}", (*port_ptr).buffer_num, (*port_ptr).buffer_size);
+
             let pool = ffi::mmal_port_pool_create(
                 port_ptr,
                 (*port_ptr).buffer_num,
@@ -840,19 +1091,19 @@ impl SeriousCamera {
 
             let output = self.camera.as_ref().output;
 
-            let still_port_ptr =
-                *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T);
+            let camera_port_ptr = if self.is_video {
+                *(output.offset(MMAL_CAMERA_VIDEO_PORT) as *mut *mut ffi::MMAL_PORT_T)
+            } else {
+                *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T)
+            };
 
             if self.use_encoder {
                 let encoder_out_port_ptr =
                     *(self.encoder.unwrap().as_ref().output as *mut *mut ffi::MMAL_PORT_T);
                 *buffer_port_ptr = encoder_out_port_ptr;
             } else {
-                *buffer_port_ptr = still_port_ptr;
+                *buffer_port_ptr = camera_port_ptr;
             }
-
-            // Send all the buffers to the camera output port
-            self.send_buffers(*buffer_port_ptr)?;
 
             let (sender, receiver) = if is_async {
                 let (sender, receiver) = futures::channel::mpsc::channel(0);
@@ -870,8 +1121,11 @@ impl SeriousCamera {
 
             self.set_buffer_callback(sender);
 
+            // Send all the buffers to the camera output port
+            self.send_buffers(*buffer_port_ptr)?;
+
             status = ffi::mmal_port_parameter_set_boolean(
-                still_port_ptr,
+                camera_port_ptr,
                 ffi::MMAL_PARAMETER_CAPTURE as u32,
                 1,
             );
@@ -884,6 +1138,7 @@ impl SeriousCamera {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
                     #[cfg(feature = "debug")]
                     println!("Started capture");
+                    self.is_capturing = true;
 
                     Ok(receiver)
                 }
@@ -941,9 +1196,7 @@ impl SeriousCamera {
         self.do_take(&mut buffer_port_ptr, true)
             .map_err(|e| {
                 unsafe {
-                    if buffer_port_ptr.is_null()
-                        && (*buffer_port_ptr).userdata.is_null()
-                    {
+                    if buffer_port_ptr.is_null() && (*buffer_port_ptr).userdata.is_null() {
                         drop_port_userdata(buffer_port_ptr);
                     }
                     self.mutex.force_unlock();
@@ -955,6 +1208,36 @@ impl SeriousCamera {
                 ReceiverKind::SyncReceiver(_) => unreachable!(),
             })
     }
+
+    /// Stop capturing video or images.
+    ///
+    /// # Safety
+    ///
+    /// This function is always safe to call, even if you are not capturing.
+    pub fn stop_capturing(&mut self) {
+        if !self.is_capturing {
+            return;
+        }
+
+        let offset = if self.is_video {
+            MMAL_CAMERA_VIDEO_PORT
+        } else {
+            MMAL_CAMERA_CAPTURE_PORT
+        };
+
+        unsafe {
+            let port_ptr = *(self.camera.as_ref().output.offset(offset) as *mut *mut ffi::MMAL_PORT_T);
+            ffi::mmal_port_parameter_set_boolean(
+                port_ptr,
+                ffi::MMAL_PARAMETER_CAPTURE as u32,
+                0,
+            );
+        }
+
+        self.is_capturing = false;
+        #[cfg(feature = "debug")]
+        println!("stopped capturing");
+    }
 }
 
 #[allow(clippy::let_unit_value)]
@@ -965,10 +1248,25 @@ unsafe extern "C" fn camera_buffer_callback(
     let bytes_to_write = (*buffer).length;
     #[allow(clippy::cast_ptr_alignment)]
     let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
-    let mut complete = false;
+    let mut frame_end = false;
 
     #[cfg(feature = "debug")]
-    println!("I'm called from C. buffer length: {}", bytes_to_write);
+    println!("camera_buffer_callback() port name: {:?} buffer length: {} flags: {}", CStr::from_ptr((*port).name), bytes_to_write, (*buffer).flags);
+
+    // for video, first we have flags 4132 then 4108. Possibly a 3rd time with 4100.
+    // 4132 =
+    // pub const MMAL_BUFFER_HEADER_FLAG_NAL_END: u32 = 4096;
+    // pub const MMAL_BUFFER_HEADER_FLAG_CONFIG: u32 = 32;
+    // pub const MMAL_BUFFER_HEADER_FLAG_FRAME_END: u32 = 4;
+    //
+    // 4108 =
+    // pub const MMAL_BUFFER_HEADER_FLAG_NAL_END: u32 = 4096;
+    // pub const MMAL_BUFFER_HEADER_FLAG_KEYFRAME: u32 = 8;
+    // pub const MMAL_BUFFER_HEADER_FLAG_FRAME_END: u32 = 4;
+    //
+    // 4100 =
+    // pub const MMAL_BUFFER_HEADER_FLAG_NAL_END: u32 = 4096;
+    // pub const MMAL_BUFFER_HEADER_FLAG_FRAME_END: u32 = 4;
 
     if !pdata_ptr.is_null() {
         let userdata: &mut Userdata = &mut *pdata_ptr;
@@ -979,7 +1277,7 @@ unsafe extern "C" fn camera_buffer_callback(
                 | ffi::MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
             > 0
         {
-            complete = true;
+            frame_end = true;
         }
 
         if bytes_to_write > 0 {
@@ -988,34 +1286,65 @@ unsafe extern "C" fn camera_buffer_callback(
             match &mut userdata.sender {
                 SenderKind::AsyncSender(sender) => {
                     sender
-                        .try_send(BufferGuard::new(port, buffer, userdata.pool, complete))
+                        .try_send(BufferGuard::new(port, buffer, userdata.pool, frame_end))
                         .unwrap();
                 }
                 SenderKind::SyncSender(sender) => {
-                    sender
+                    let result = sender
                         .send(Some(BufferGuard::new(
                             port,
                             buffer,
                             userdata.pool,
-                            complete,
-                        )))
-                        .unwrap();
+                            frame_end,
+                        )));
+                    if let Err(_err) = result {
+                        #[cfg(feature = "debug")]
+                        println!("Got err sending data to channel: {:?}", _err);
+                    }
                 }
             }
+
+            return;
         } else {
+            // Release buffer back to the pool
+            ffi::mmal_buffer_header_release(buffer);
+
             match &mut userdata.sender {
                 SenderKind::AsyncSender(sender) => sender.close_channel(),
                 SenderKind::SyncSender(sender) => {
                     if let Err(_err) = sender.send(None) {
                         #[cfg(feature = "debug")]
-                        println!("Got err sending None: {}", _err);
+                        println!("Got err sending None to channel: {}", _err);
                     }
+                }
+            }
+
+            if !(*port).userdata.is_null() {
+                drop_port_userdata(port);
+            }
+
+            // Get new buffer from the pool and send it to the port (if still open)
+            if (*port).is_enabled > 0 {
+                let mut status = ffi::MMAL_STATUS_T::MMAL_STATUS_MAX;
+                let new_buffer: *mut ffi::MMAL_BUFFER_HEADER_T =
+                    ffi::mmal_queue_get(userdata.pool.as_ref().queue);
+
+                if !new_buffer.is_null() {
+                    status = ffi::mmal_port_send_buffer(port, new_buffer);
+                }
+
+                if new_buffer.is_null() || status != MMAL_STATUS_T::MMAL_SUCCESS {
+                    #[cfg(feature = "debug")]
+                    println!("Unable to return the buffer to the port");
                 }
             }
         }
     } else {
         #[cfg(feature = "debug")]
         println!("Received a camera still buffer callback with no state");
+
+        // Release buffer back to the pool
+        ffi::mmal_buffer_header_release(buffer);
     }
 }
 
@@ -1074,12 +1403,44 @@ unsafe extern "C" fn camera_control_callback(
 impl Drop for SeriousCamera {
     fn drop(&mut self) {
         unsafe {
-            let _guard = self.mutex.lock();
+            let was_capturing = self.is_capturing;
+            self.stop_capturing();
+
+            if self.encoder_output_port_enabled {
+                let port = *self.encoder.unwrap().as_ref().output.offset(0);
+                ffi::mmal_port_disable(port);
+                #[cfg(feature = "debug")]
+                println!("encoder output port disabled");
+            }
+
+            if was_capturing && !self.use_encoder {
+                if self.is_video {
+                    ffi::mmal_port_disable(*(self.camera.as_ref().output.offset(MMAL_CAMERA_VIDEO_PORT)));
+                    #[cfg(feature = "debug")]
+                    println!("camera video port port disabled");
+                } else {
+                    ffi::mmal_port_disable(*(self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT)));
+                    #[cfg(feature = "debug")]
+                    println!("camera still port port disabled");
+                }
+            }
+
+            if self.camera_port_enabled {
+                ffi::mmal_port_disable(self.camera.as_ref().control);
+                #[cfg(feature = "debug")]
+                println!("camera control port disabled");
+            }
+            if self.encoder_control_port_enabled {
+                ffi::mmal_port_disable(self.encoder.unwrap().as_ref().control);
+                #[cfg(feature = "debug")]
+                println!("encoder control port disabled");
+            }
 
             if self.connection_created {
                 ffi::mmal_connection_disable(self.connection.unwrap().as_ptr());
                 ffi::mmal_connection_destroy(self.connection.unwrap().as_ptr());
             }
+
             if self.encoder_enabled {
                 ffi::mmal_component_disable(self.encoder.unwrap().as_ptr());
                 #[cfg(feature = "debug")]
@@ -1089,16 +1450,6 @@ impl Drop for SeriousCamera {
                 ffi::mmal_component_disable(self.camera.as_ptr());
                 #[cfg(feature = "debug")]
                 println!("camera disabled");
-            }
-            if self.encoder_control_port_enabled {
-                ffi::mmal_port_disable(self.encoder.unwrap().as_ref().control);
-                #[cfg(feature = "debug")]
-                println!("port disabled");
-            }
-            if self.camera_port_enabled {
-                ffi::mmal_port_disable(self.camera.as_ref().control);
-                #[cfg(feature = "debug")]
-                println!("port disabled");
             }
 
             ffi::mmal_component_destroy(self.camera.as_ptr());
@@ -1168,9 +1519,11 @@ impl SimpleCamera {
         let settings = self.settings.as_ref().unwrap();
         let camera = &mut self.serious;
 
+        let one_shot_stills = settings.encoding != ffi::MMAL_ENCODING_H264;
+
         camera.set_camera_num(0)?;
         camera.create_encoder()?;
-        camera.set_camera_params(&self.info)?;
+        camera.set_camera_params(&self.info, one_shot_stills, settings.framerate)?;
 
         camera.create_preview()?;
 
@@ -1201,7 +1554,7 @@ impl SimpleCamera {
             match result {
                 Some(buf) => {
                     writer.write_all(buf.get_bytes())?;
-                    if buf.is_complete() {
+                    if buf.is_frame_end() {
                         break;
                     }
                 }
@@ -1227,11 +1580,9 @@ impl SimpleCamera {
     pub async fn take_one_async(&mut self) -> Result<Vec<u8>, CameraError> {
         let receiver = self.serious.take_async()?;
         let future = receiver
-            .fold(Vec::new(), |mut acc, buf| {
-                async move {
-                    acc.extend(buf.get_bytes());
-                    acc
-                }
+            .fold(Vec::new(), |mut acc, buf| async move {
+                acc.extend(buf.get_bytes());
+                acc
             })
             .map(Ok);
 
@@ -1250,6 +1601,8 @@ pub unsafe fn drop_port_userdata(port: *mut ffi::MMAL_PORT_T) {
     userdata._guard.force_unlock();
     drop(userdata);
     (*port).userdata = ptr::null_mut() as *mut ffi::MMAL_PORT_USERDATA_T;
+    #[cfg(feature = "debug")]
+    println!("dropped port userdata. port.name: {}", CStr::from_ptr((*port).name).to_str().unwrap());
 }
 
 trait Sender {
