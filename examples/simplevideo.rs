@@ -1,6 +1,6 @@
 use rascam::*;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::{thread, time};
 
 fn main() {
@@ -17,13 +17,44 @@ fn main() {
 
 fn simple_video(info: &CameraInfo) {
     let mut camera = SimpleCamera::new(info.clone()).unwrap();
+    camera.configure(CameraSettings {
+        // shared
+        encoding: MMAL_ENCODING_H264,
+        width: info.max_width / 2,
+        height: info.max_height / 2,
+        use_encoder: true,
+        // video
+        framerate: 2,
+        video_profile: MMAL_VIDEO_LEVEL_H264_4,
+        video_level: MMAL_VIDEO_PROFILE_H264_HIGH,
+        ..Default::default()
+    });
     camera.activate().unwrap();
 
     let sleep_duration = time::Duration::from_millis(2000);
     thread::sleep(sleep_duration);
 
-    let b = camera.take_one().unwrap();
-    File::create("image.jpg").unwrap().write_all(&b).unwrap();
+    println!("Recording video for 5s");
 
-    println!("Saved image as image.jpg");
+    let mut file = BufWriter::new(File::create("video.h264").unwrap());
+    let frame_iter = camera.take_video_frame_writer().unwrap();
+
+    let handle = thread::spawn(move || {
+        for frame in frame_iter {
+            file.write_all(&frame[..]).unwrap();
+        }
+        file
+    });
+
+    let sleep_duration = time::Duration::from_millis(5000);
+    thread::sleep(sleep_duration);
+
+    camera.stop();
+
+    {
+        let mut file = handle.join().unwrap();
+        file.flush().unwrap();
+    }
+
+    println!("Saved video as video.h264");
 }

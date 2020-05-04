@@ -1,4 +1,8 @@
 target/
 **/*.rs.bk
 Cargo.lock
-image*
+
+image.jpg
+image.rgb
+image.png
+video.h264

@@ -29,6 +29,8 @@ impl MmalError {
     }
 }
 
+unsafe impl Send for MmalError {}
+
 #[test]
 fn test_camera_error_status() {
     let mut err = MmalError {

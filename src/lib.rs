@@ -150,6 +150,8 @@ impl Drop for BufferGuard {
     }
 }
 
+unsafe impl Send for BufferGuard {}
+
 #[repr(C)]
 pub struct SeriousCamera {
     camera: NonNull<ffi::MMAL_COMPONENT_T>,
@@ -403,7 +405,7 @@ impl SeriousCamera {
             cfg.one_shot_stills = if one_shot_stills { 1 } else { 0 };
             cfg.max_preview_video_w = info.max_width;
             cfg.max_preview_video_h = info.max_height;
-            cfg.num_preview_video_frames = 3 + std::cmp::max(0, (framerate-30)/10);
+            cfg.num_preview_video_frames = 3 + std::cmp::max(0, (framerate as i32-30)/10) as u32;
             cfg.stills_capture_circular_buffer_height = 0;
             cfg.fast_preview_resume = 0;
             cfg.use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
@@ -1522,14 +1524,22 @@ impl SimpleCamera {
         let one_shot_stills = settings.encoding != ffi::MMAL_ENCODING_H264;
 
         camera.set_camera_num(0)?;
-        camera.create_encoder()?;
+        if settings.encoding == MMAL_ENCODING_H264 {
+            camera.create_video_encoder()?;
+        } else {
+            camera.create_encoder()?;
+        }
+        camera.enable_control_port(false)?;
         camera.set_camera_params(&self.info, one_shot_stills, settings.framerate)?;
 
         camera.create_preview()?;
 
         // camera.set_camera_format(ffi::MMAL_ENCODING_JPEG, self.info.max_width, self.info.max_height, false)?;
-        camera.set_camera_format(settings)?;
-        camera.enable_control_port(false)?;
+        if settings.encoding == MMAL_ENCODING_H264 {
+            camera.set_video_camera_format(settings)?;
+        } else {
+            camera.set_camera_format(settings)?;
+        }
 
         camera.enable()?;
         camera.enable_encoder()?; // only needed if processing image eg returning jpeg
@@ -1559,7 +1569,7 @@ impl SimpleCamera {
                     }
                 }
                 None => break,
-            };
+            }
         }
 
         Ok(())
@@ -1588,7 +1598,39 @@ impl SimpleCamera {
 
         future.await
     }
+
+    /// Starts capturing video and returns an iterator of frames.
+    pub fn take_video_frame_writer<'a>(&mut self) -> Result<impl std::iter::Iterator<Item=Vec<u8>>, CameraError> {
+        let mut frame = Vec::new();
+        let receiver = self.serious.take()?;
+
+        Ok(receiver
+            .into_iter()
+            .take_while(|buf| {
+                buf.is_some()
+            })
+            .filter_map(move |buf| {
+                let buf = buf.unwrap();
+
+                frame.extend(buf.get_bytes());
+                if buf.is_frame_end() {
+                    let result = Some(frame.clone());
+                    frame.truncate(0);
+                    result
+                } else {
+                    None
+                }
+            }))
+    }
+
+    /// Stops capturing.
+    ///
+    /// This is safe to call regardless of if there is any capture in progress.
+    pub fn stop(mut self) {
+        self.serious.stop_capturing();
+    }
 }
+
 
 /// Drops a port's userdata.
 ///

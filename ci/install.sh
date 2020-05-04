@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cargo install cross
+cargo install --force cross
