@@ -32,6 +32,20 @@ If things are crashing or producing unexpected results there is a feature which 
 rascam = { version = "0.0.1", features = ["debug"] }
 ```
 
+## Tests
+
+Run the limited unit tests and documentation tests:
+
+```
+cargo test
+```
+
+If you have a Raspberry Pi with the camera module attached there are also integration tests:
+
+```
+cargo test --features test-rpi
+```
+
 ## License
 
 Released under the MIT license.

@@ -10,6 +10,7 @@ use crate::error::{CameraError, MmalError};
 use crate::init::init;
 
 /// Contains information about attached cameras.
+#[derive(Clone, Debug)]
 pub struct Info {
     pub cameras: Vec<CameraInfo>,
     // TODO: flashes?

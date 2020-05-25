@@ -22,12 +22,17 @@ futures = "0.3"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [features]
 default = []
 
 # Enable this feature to enable some print statements for debugging.
 debug = []
+
+# This feature is only for running integration tests with a real Raspberry Pi with camera.
+test-rpi = []
 
 [package.metadata.docs.rs]
 default-target = "armv7-unknown-linux-gnueabihf"

@@ -41,7 +41,7 @@ const MMAL_CAMERA_CAPTURE_PORT: isize = 2;
 const PREVIEW_FRAME_RATE_NUM: i32 = 0;
 const PREVIEW_FRAME_RATE_DEN: i32 = 1;
 
-/// Video render needs at least 2 buffers.
+/// Video needs at least 2 buffers.
 const VIDEO_OUTPUT_BUFFERS_NUM: u32 = 3;
 
 // TODO: what about the rest of these formats?
@@ -145,6 +145,11 @@ impl Drop for BufferGuard {
                     #[cfg(feature = "debug")]
                     println!("Unable to return the buffer to the port");
                 }
+            } else {
+                // This might currently cause a hang. The hang is a bug but
+                // the port being disabled is not a bug.
+                #[cfg(feature = "debug")]
+                println!("port disabled: cannot return buffer to disabled port");
             }
         }
     }
@@ -564,20 +569,20 @@ impl SeriousCamera {
             let encoder_in_port = *encoder_in_port_ptr;
             let encoder_out_port = *encoder_out_port_ptr;
 
-            (*(*encoder_out_port.format).es).video.frame_rate.num = 1966080;
+            (*(*encoder_out_port.format).es).video.frame_rate.num = 1_966_080;
 
             // We want same format on input and output
             ffi::mmal_format_copy(encoder_out_port.format, encoder_in_port.format);
 
             format = encoder_out_port.format;
             (*format).encoding = encoding;
-            (*format).bitrate = 17000000;
+            (*format).bitrate = 17_000_000;
 
             es = (*format).es;
 
             // We need to set the frame rate on output to 0, to ensure it gets
             // updated correctly from the input framerate when port connected
-            (*es).video.frame_rate.num = 1966080;
+            (*es).video.frame_rate.num = 1_966_080;
             (*es).video.frame_rate.den = 1;
             (*es).video.height = 1080;
 
@@ -1305,8 +1310,6 @@ unsafe extern "C" fn camera_buffer_callback(
                     }
                 }
             }
-
-            return;
         } else {
             // Release buffer back to the pool
             ffi::mmal_buffer_header_release(buffer);
@@ -1484,7 +1487,7 @@ impl Drop for SeriousCamera {
 /// thread::sleep(sleep_duration);
 ///
 /// let b = camera.take_one().unwrap();
-/// File::create("image1.jpg").unwrap().write_all(&b).unwrap();
+/// File::create("image.jpg").unwrap().write_all(&b).unwrap();
 /// ```
 pub struct SimpleCamera {
     info: CameraInfo,
@@ -1600,7 +1603,7 @@ impl SimpleCamera {
     }
 
     /// Starts capturing video and returns an iterator of frames.
-    pub fn take_video_frame_writer<'a>(&mut self) -> Result<impl std::iter::Iterator<Item=Vec<u8>>, CameraError> {
+    pub fn take_video_frame_writer(&mut self) -> Result<impl std::iter::Iterator<Item=Vec<u8>>, CameraError> {
         let mut frame = Vec::new();
         let receiver = self.serious.take()?;
 
