@@ -25,13 +25,19 @@ pub (crate) struct ProbeInfo {
 #[derive(Deserialize, Debug, Clone)]
 pub (crate) struct ProbeStream {
     pub (crate) codec_name: String,
+    /// Valid values include: Baseline
     pub (crate) profile: String,
+    /// This can be negative.
+    ///
+    /// Numbers do not correspond with the constants used in mmal but the h264 values eg 42 = MMAL_VIDEO_LEVEL_H264_42.
+    pub (crate) level: i32,
     pub (crate) codec_type: String,
     #[serde(deserialize_with = "deserialize_hex")]
     pub (crate) codec_tag: Vec<u8>,
-    pub (crate) width: i32,
-    pub (crate) height: i32,
-    pub (crate) level: i32,
+    pub (crate) width: u32,
+    pub (crate) height: u32,
+    pub (crate) coded_width: u32,
+    pub (crate) coded_height: u32,
     #[serde(rename = "nb_read_frames", deserialize_with = "deserialize_str_num")]
     pub (crate) num_frames: i32,
 }
@@ -178,7 +184,7 @@ pub (crate) fn assert_framerate(actual: f32, expected: u32) {
     }
 }
 
-pub (crate) fn record_video(num_secs: u64, mut settings: CameraSettings, path: &str) {
+pub (crate) fn record_video(num_secs: u64, mut settings: CameraSettings, path: &str) -> Result<(), rascam::CameraError> {
     let info = info();
 
     // On the v2 camera module, the maximum resolution is 2592×1944 for stills and 1920×1080 for videos.
@@ -189,12 +195,12 @@ pub (crate) fn record_video(num_secs: u64, mut settings: CameraSettings, path: &
         settings.height = 1080;
     }
 
-    let mut camera = rascam::SimpleCamera::new(info.clone()).unwrap();
+    let mut camera = rascam::SimpleCamera::new(info.clone())?;
     camera.configure(settings);
-    camera.activate().unwrap();
+    camera.activate()?;
 
-    let mut writer = BufWriter::new(File::create(path).unwrap());
-    let frame_iter = camera.take_video_frame_writer().unwrap();
+    let mut writer = BufWriter::new(File::create(path)?);
+    let frame_iter = camera.take_video_frame_writer()?;
 
     let handle = thread::spawn(move || {
         for frame in frame_iter {
@@ -210,4 +216,6 @@ pub (crate) fn record_video(num_secs: u64, mut settings: CameraSettings, path: &
 
     let mut file = handle.join().unwrap();
     file.flush().unwrap();
+
+    Ok(())
 }

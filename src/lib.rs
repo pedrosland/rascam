@@ -57,6 +57,9 @@ pub use ffi::MMAL_ENCODING_H264;
 
 // TODO: do something about these:
 pub use ffi::MMAL_VIDEO_LEVEL_H264_4;
+pub use ffi::MMAL_VIDEO_LEVEL_H264_41;
+pub use ffi::MMAL_VIDEO_LEVEL_H264_42;
+pub use ffi::MMAL_VIDEO_PROFILE_H264_BASELINE;
 pub use ffi::MMAL_VIDEO_PROFILE_H264_HIGH;
 
 struct Userdata {
@@ -636,12 +639,36 @@ impl SeriousCamera {
                 }
             }
 
-            // TODO: various H264 encoding settings
-            // eg MMAL_PARAMETER_INTRAPERIOD, MMAL_PARAMETER_MB_ROWS_PER_SLICE, MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT
-            // **MMAL_PARAMETER_VIDEO_PROFILE_T**
-            // MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_HEADER, MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_VECTORS, MMAL_PARAMETER_VIDEO_INTRA_REFRESH_T
+            // Various h264 settings
+            if encoding == MMAL_ENCODING_H264 {
+                self.set_h264_settings(encoder_out_port_ptr, &settings)?;
+            }
 
             Ok(())
+        }
+    }
+
+    fn set_h264_settings(&mut self, encoder_out_port_ptr: *mut ffi::MMAL_PORT_T, settings: &CameraSettings) -> Result<(), CameraError> {
+        unsafe {
+            let mut param: ffi::MMAL_PARAMETER_VIDEO_PROFILE_T = mem::zeroed();
+            param.hdr.id = ffi::MMAL_PARAMETER_PROFILE as u32;
+            param.hdr.size = mem::size_of::<ffi::MMAL_PARAMETER_VIDEO_PROFILE_T>() as u32;
+
+            param.profile[0].profile = settings.video_profile;
+            param.profile[0].level = settings.video_level;
+
+            let status = ffi::mmal_port_parameter_set(encoder_out_port_ptr, &param.hdr);
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status("Unable to set h264 settings".to_owned(), status).into());
+            }
+
+            Ok(())
+
+            // TODO: Check if there are enough macroblocks somewhere
+
+            // TODO: more H264 encoding settings
+            // eg MMAL_PARAMETER_INTRAPERIOD, MMAL_PARAMETER_MB_ROWS_PER_SLICE, MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT
+            // MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_HEADER, MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_VECTORS, MMAL_PARAMETER_VIDEO_INTRA_REFRESH_T
         }
     }
 

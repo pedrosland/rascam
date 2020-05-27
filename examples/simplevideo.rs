@@ -25,8 +25,8 @@ fn simple_video(info: &CameraInfo) {
         use_encoder: true,
         // video
         framerate: 2,
-        video_profile: MMAL_VIDEO_LEVEL_H264_4,
-        video_level: MMAL_VIDEO_PROFILE_H264_HIGH,
+        video_profile: MMAL_VIDEO_PROFILE_H264_HIGH,
+        video_level: MMAL_VIDEO_LEVEL_H264_4,
         ..Default::default()
     });
     camera.activate().unwrap();

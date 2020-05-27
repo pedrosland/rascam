@@ -37,7 +37,7 @@ pub const ISO_3200: ISO = 3200;
 /// };
 /// camera.configure(settings);
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CameraSettings {
     // shared
     pub encoding: c_uint,
