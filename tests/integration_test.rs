@@ -4,8 +4,8 @@ mod common;
 #[cfg(feature = "test-rpi")]
 mod integration {
 
-    use serial_test::serial;
     use super::common;
+    use serial_test::serial;
 
     /// Note that this test will fail under low light conditions
     /// if the camera can't maintain exposure settings etc at 10 fps.
@@ -124,7 +124,10 @@ mod integration {
         // mmal: mmal_port_enable: failed to enable connected port (vc.ril.video_encode:in:0(OPQV))0xb672c730 (EINVAL)
         // mmal: mmal_connection_enable: output port couldn't be enabled
         let result = common::record_video(num_secs, settings.clone(), path);
-        assert!(result.is_err(), "expected error trying to encode too much data for the given h264 level");
+        assert!(
+            result.is_err(),
+            "expected error trying to encode too much data for the given h264 level"
+        );
 
         let settings = rascam::CameraSettings {
             video_level: rascam::MMAL_VIDEO_LEVEL_H264_42,
@@ -137,7 +140,7 @@ mod integration {
         assert_eq!(probe.width, settings.width);
         assert_eq!(probe.height, settings.height);
         // It would be nice to assert on framerate but we can't always capture 1080p@60fps with sensible exposure.
-        // When we have more control we could assert on framerate.
+        // When we have more control (shutter speed) we could assert on framerate.
     }
 
     /// Test that h264 profile and level set.
@@ -181,5 +184,4 @@ mod integration {
         assert_eq!(probe.profile, "Baseline");
         assert_eq!(probe.level, 42);
     }
-
 }

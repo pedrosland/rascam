@@ -35,7 +35,9 @@ fn serious_video(info: &CameraInfo) {
         video_profile: MMAL_VIDEO_PROFILE_H264_HIGH,
         video_level: MMAL_VIDEO_LEVEL_H264_4,
     };
-    camera.set_camera_params(info, false, settings.framerate).unwrap();
+    camera
+        .set_camera_params(info, false, settings.framerate)
+        .unwrap();
     println!("camera params set");
     camera.create_video_encoder().unwrap();
     println!("video encoder created");
@@ -78,7 +80,7 @@ fn serious_video(info: &CameraInfo) {
             Ok(msg) => {
                 let buffer = msg.unwrap();
                 file.write_all(&buffer.get_bytes()).unwrap();
-            },
+            }
             Err(RecvTimeoutError::Timeout) => (), // ignore
             Err(RecvTimeoutError::Disconnected) => break,
         }

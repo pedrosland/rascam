@@ -37,6 +37,11 @@ pub const ISO_3200: ISO = 3200;
 /// };
 /// camera.configure(settings);
 /// ```
+///
+/// Note that not all options are available on all RaspberryPi Models.
+/// As an example, the Pi4 doesn't support H263, MPEG2, MPEG4 or VC1 encodings.
+/// See https://github.com/raspberrypi/documentation/blob/master/raspbian/applications/vcgencmd.md#codec_enabled-type
+/// and https://www.raspberrypi.org/forums/viewtopic.php?t=250419
 #[derive(Clone, Debug)]
 pub struct CameraSettings {
     // shared
@@ -66,6 +71,20 @@ impl Default for CameraSettings {
             framerate: 30,
             video_profile: ffi::MMAL_VIDEO_PROFILE_H264_HIGH,
             video_level: ffi::MMAL_VIDEO_LEVEL_H264_4,
+        }
+    }
+}
+
+impl CameraSettings {
+    pub(crate) fn is_video(&self) -> bool {
+        match self.encoding {
+            ffi::MMAL_ENCODING_H264
+            | ffi::MMAL_ENCODING_VP8
+            | ffi::MMAL_ENCODING_MP4V
+            | ffi::MMAL_ENCODING_MP2V
+            | ffi::MMAL_ENCODING_WVC1
+            | ffi::MMAL_ENCODING_H263 => true,
+            _ => false,
         }
     }
 }

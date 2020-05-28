@@ -400,7 +400,12 @@ impl SeriousCamera {
         }
     }
 
-    pub fn set_camera_params(&mut self, info: &CameraInfo, one_shot_stills: bool, framerate: u32) -> Result<(), CameraError> {
+    pub fn set_camera_params(
+        &mut self,
+        info: &CameraInfo,
+        one_shot_stills: bool,
+        framerate: u32,
+    ) -> Result<(), CameraError> {
         unsafe {
             let mut cfg: ffi::MMAL_PARAMETER_CAMERA_CONFIG_T = mem::zeroed();
             cfg.hdr.id = ffi::MMAL_PARAMETER_CAMERA_CONFIG as u32;
@@ -413,7 +418,8 @@ impl SeriousCamera {
             cfg.one_shot_stills = if one_shot_stills { 1 } else { 0 };
             cfg.max_preview_video_w = info.max_width;
             cfg.max_preview_video_h = info.max_height;
-            cfg.num_preview_video_frames = 3 + std::cmp::max(0, (framerate as i32-30)/10) as u32;
+            cfg.num_preview_video_frames =
+                3 + std::cmp::max(0, (framerate as i32 - 30) / 10) as u32;
             cfg.stills_capture_circular_buffer_height = 0;
             cfg.fast_preview_resume = 0;
             cfg.use_stc_timestamp = ffi::MMAL_PARAMETER_CAMERA_CONFIG_TIMESTAMP_MODE_T::MMAL_PARAM_TIMESTAMP_MODE_RESET_STC;
@@ -589,7 +595,7 @@ impl SeriousCamera {
             (*es).video.frame_rate.den = 1;
             (*es).video.height = 1080;
 
-            if encoding == MMAL_ENCODING_H264 {
+            if settings.is_video() {
                 (*encoder_out_port_ptr).buffer_size = encoder_out_port.buffer_size_recommended;
             } else {
                 (*encoder_out_port_ptr).buffer_size = 256 << 10
@@ -640,7 +646,7 @@ impl SeriousCamera {
             }
 
             // Various h264 settings
-            if encoding == MMAL_ENCODING_H264 {
+            if encoding == ffi::MMAL_ENCODING_H264 {
                 self.set_h264_settings(encoder_out_port_ptr, &settings)?;
             }
 
@@ -648,7 +654,11 @@ impl SeriousCamera {
         }
     }
 
-    fn set_h264_settings(&mut self, encoder_out_port_ptr: *mut ffi::MMAL_PORT_T, settings: &CameraSettings) -> Result<(), CameraError> {
+    fn set_h264_settings(
+        &mut self,
+        encoder_out_port_ptr: *mut ffi::MMAL_PORT_T,
+        settings: &CameraSettings,
+    ) -> Result<(), CameraError> {
         unsafe {
             let mut param: ffi::MMAL_PARAMETER_VIDEO_PROFILE_T = mem::zeroed();
             param.hdr.id = ffi::MMAL_PARAMETER_PROFILE as u32;
@@ -659,7 +669,11 @@ impl SeriousCamera {
 
             let status = ffi::mmal_port_parameter_set(encoder_out_port_ptr, &param.hdr);
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
-                return Err(MmalError::with_status("Unable to set h264 settings".to_owned(), status).into());
+                return Err(MmalError::with_status(
+                    "Unable to set h264 settings".to_owned(),
+                    status,
+                )
+                .into());
             }
 
             Ok(())
@@ -970,7 +984,11 @@ impl SeriousCamera {
             };
 
             #[cfg(feature = "debug")]
-            println!("create pool buffer_num: {}, buffer_size: {}", (*port_ptr).buffer_num, (*port_ptr).buffer_size);
+            println!(
+                "create pool buffer_num: {}, buffer_size: {}",
+                (*port_ptr).buffer_num,
+                (*port_ptr).buffer_size
+            );
 
             let pool = ffi::mmal_port_pool_create(
                 port_ptr,
@@ -1260,12 +1278,9 @@ impl SeriousCamera {
         };
 
         unsafe {
-            let port_ptr = *(self.camera.as_ref().output.offset(offset) as *mut *mut ffi::MMAL_PORT_T);
-            ffi::mmal_port_parameter_set_boolean(
-                port_ptr,
-                ffi::MMAL_PARAMETER_CAPTURE as u32,
-                0,
-            );
+            let port_ptr =
+                *(self.camera.as_ref().output.offset(offset) as *mut *mut ffi::MMAL_PORT_T);
+            ffi::mmal_port_parameter_set_boolean(port_ptr, ffi::MMAL_PARAMETER_CAPTURE as u32, 0);
         }
 
         self.is_capturing = false;
@@ -1285,7 +1300,12 @@ unsafe extern "C" fn camera_buffer_callback(
     let mut frame_end = false;
 
     #[cfg(feature = "debug")]
-    println!("camera_buffer_callback() port name: {:?} buffer length: {} flags: {}", CStr::from_ptr((*port).name), bytes_to_write, (*buffer).flags);
+    println!(
+        "camera_buffer_callback() port name: {:?} buffer length: {} flags: {}",
+        CStr::from_ptr((*port).name),
+        bytes_to_write,
+        (*buffer).flags
+    );
 
     // for video, first we have flags 4132 then 4108. Possibly a 3rd time with 4100.
     // 4132 =
@@ -1324,13 +1344,12 @@ unsafe extern "C" fn camera_buffer_callback(
                         .unwrap();
                 }
                 SenderKind::SyncSender(sender) => {
-                    let result = sender
-                        .send(Some(BufferGuard::new(
-                            port,
-                            buffer,
-                            userdata.pool,
-                            frame_end,
-                        )));
+                    let result = sender.send(Some(BufferGuard::new(
+                        port,
+                        buffer,
+                        userdata.pool,
+                        frame_end,
+                    )));
                     if let Err(_err) = result {
                         #[cfg(feature = "debug")]
                         println!("Got err sending data to channel: {:?}", _err);
@@ -1447,11 +1466,15 @@ impl Drop for SeriousCamera {
 
             if was_capturing && !self.use_encoder {
                 if self.is_video {
-                    ffi::mmal_port_disable(*(self.camera.as_ref().output.offset(MMAL_CAMERA_VIDEO_PORT)));
+                    ffi::mmal_port_disable(
+                        *(self.camera.as_ref().output.offset(MMAL_CAMERA_VIDEO_PORT)),
+                    );
                     #[cfg(feature = "debug")]
                     println!("camera video port port disabled");
                 } else {
-                    ffi::mmal_port_disable(*(self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT)));
+                    ffi::mmal_port_disable(
+                        *(self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT)),
+                    );
                     #[cfg(feature = "debug")]
                     println!("camera still port port disabled");
                 }
@@ -1551,10 +1574,10 @@ impl SimpleCamera {
         let settings = self.settings.as_ref().unwrap();
         let camera = &mut self.serious;
 
-        let one_shot_stills = settings.encoding != ffi::MMAL_ENCODING_H264;
+        let one_shot_stills = !settings.is_video();
 
         camera.set_camera_num(0)?;
-        if settings.encoding == MMAL_ENCODING_H264 {
+        if settings.is_video() {
             camera.create_video_encoder()?;
         } else {
             camera.create_encoder()?;
@@ -1565,7 +1588,7 @@ impl SimpleCamera {
         camera.create_preview()?;
 
         // camera.set_camera_format(ffi::MMAL_ENCODING_JPEG, self.info.max_width, self.info.max_height, false)?;
-        if settings.encoding == MMAL_ENCODING_H264 {
+        if settings.is_video() {
             camera.set_video_camera_format(settings)?;
         } else {
             camera.set_camera_format(settings)?;
@@ -1630,15 +1653,15 @@ impl SimpleCamera {
     }
 
     /// Starts capturing video and returns an iterator of frames.
-    pub fn take_video_frame_writer(&mut self) -> Result<impl std::iter::Iterator<Item=Vec<u8>>, CameraError> {
+    pub fn take_video_frame_writer(
+        &mut self,
+    ) -> Result<impl std::iter::Iterator<Item = Vec<u8>>, CameraError> {
         let mut frame = Vec::new();
         let receiver = self.serious.take()?;
 
         Ok(receiver
             .into_iter()
-            .take_while(|buf| {
-                buf.is_some()
-            })
+            .take_while(|buf| buf.is_some())
             .filter_map(move |buf| {
                 let buf = buf.unwrap();
 
@@ -1661,7 +1684,6 @@ impl SimpleCamera {
     }
 }
 
-
 /// Drops a port's userdata.
 ///
 /// # Safety
@@ -1674,7 +1696,10 @@ pub unsafe fn drop_port_userdata(port: *mut ffi::MMAL_PORT_T) {
     drop(userdata);
     (*port).userdata = ptr::null_mut() as *mut ffi::MMAL_PORT_USERDATA_T;
     #[cfg(feature = "debug")]
-    println!("dropped port userdata. port.name: {}", CStr::from_ptr((*port).name).to_str().unwrap());
+    println!(
+        "dropped port userdata. port.name: {}",
+        CStr::from_ptr((*port).name).to_str().unwrap()
+    );
 }
 
 trait Sender {
