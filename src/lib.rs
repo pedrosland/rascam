@@ -1080,15 +1080,25 @@ impl Drop for SeriousCamera {
                 #[cfg(feature = "debug")]
                 println!("camera disabled");
             }
+            if self.encoder_output_port_enabled {
+                ffi::mmal_port_disable(*self.encoder.unwrap().as_ref().output.offset(0));
+                #[cfg(feature = "debug")]
+                println!("encoder output port disabled");
+            }
             if self.encoder_control_port_enabled {
                 ffi::mmal_port_disable(self.encoder.unwrap().as_ref().control);
                 #[cfg(feature = "debug")]
-                println!("port disabled");
+                println!("encoder control port disabled");
             }
             if self.camera_port_enabled {
                 ffi::mmal_port_disable(self.camera.as_ref().control);
                 #[cfg(feature = "debug")]
-                println!("port disabled");
+                println!("camera port disabled");
+            }
+            if self.still_port_enabled {
+                ffi::mmal_port_disable(*self.camera.as_ref().output.offset(2));
+                #[cfg(feature = "debug")]
+                println!("still port disabled");
             }
             if self.preview_connection.is_some() {
                 ffi::mmal_connection_disable(self.preview_connection.unwrap().as_ptr());
@@ -1110,10 +1120,8 @@ impl Drop for SeriousCamera {
                     let output = self.camera.as_ref().output;
                     *(output.offset(MMAL_CAMERA_CAPTURE_PORT) as *mut *mut ffi::MMAL_PORT_T)
                 };
-                let port_disable_result = ffi::mmal_port_disable(port_ptr);
-                if port_disable_result != MMAL_STATUS_T::MMAL_SUCCESS {
-                    println!("Failed to disable port on SeriousCamera::drop()");
-                }
+                // port doesn't need to be disabled because it is already
+                // previously disabled in previous if statements
                 ffi::mmal_port_pool_destroy(port_ptr, self.pool.unwrap().as_ptr());
                 #[cfg(feature = "debug")]
                 println!("pool destroyed");
