@@ -25,11 +25,14 @@ rascam = "0.0.2"
 
 Check out the [SimpleCamera example](https://github.com/pedrosland/rascam/blob/master/examples/simple.rs) to get started quickly.
 
-If things are crashing or producing unexpected results there is a feature which enables some print statements which may help to debug an issue:
+This crate uses [tracing](https://crates.io/crates/tracing) to produce logging events. 
+If things are crashing or producing unexpected results, you can print the logs by adding the [tracing-subscriber](https://crates.io/crates/tracing-subscriber) crate to your project.
+Enable the logging by putting `tracing_subscriber::fmt::init();` at the top of your `main()` function. Set the `RUST_LOG` environment variable to `DEBUG`.
+For example, this can be done by calling cargo like this: `$ RUST_LOG=DEBUG cargo run`.
 
 ```toml
 [dependencies]
-rascam = { version = "0.0.1", features = ["debug"] }
+rascam = { version = "0.0.1" }
 ```
 
 ## License
