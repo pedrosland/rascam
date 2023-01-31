@@ -1,16 +1,20 @@
 use rascam::*;
 use std::{thread, time};
+use tracing::{error, info};
 
 // Make sure to run with --release
 
 fn main() {
+    // Set up logging to stdout
+    tracing_subscriber::fmt::init();
+
     let info = info().unwrap();
     if info.cameras.len() < 1 {
-        println!("Found 0 cameras. Exiting");
+        error!("Found 0 cameras. Exiting");
         // note that this doesn't run destructors
         ::std::process::exit(1);
     }
-    println!("{}", info);
+    info!("{}", info);
 
     bench_jpegs_per_sec(10);
 }
@@ -49,13 +53,13 @@ fn bench_jpegs_per_sec(n: i32) {
         let images = 30;
         let (_, runtime) = time(|| bench_jpegs(images, &mut b));
         let images_per_sec = images as f64 / runtime;
-        println!(
+        info!(
             "{} images in {} sec, {:.2} images/sec",
             images, runtime, images_per_sec
         );
         runs.push(images_per_sec);
     }
-    println!(
+    info!(
         "Avg: {:.2} images/sec from {} runs",
         runs.iter().sum::<f64>() / (runs.len() as f64),
         runs.len()

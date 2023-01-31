@@ -51,6 +51,7 @@ pub use ffi::MMAL_ENCODING_PNG;
 pub use ffi::MMAL_ENCODING_OPAQUE;
 
 pub use ffi::MMAL_ENCODING_RGB24;
+use tracing::debug;
 
 struct Userdata {
     pool: NonNull<ffi::MMAL_POOL_T>,
@@ -135,8 +136,7 @@ impl Drop for BufferGuard {
                 }
 
                 if new_buffer.is_null() || status != MMAL_STATUS_T::MMAL_SUCCESS {
-                    #[cfg(feature = "debug")]
-                    println!("Unable to return the buffer to the port");
+                    debug!("Unable to return the buffer to the port");
                 }
             }
 
@@ -144,8 +144,7 @@ impl Drop for BufferGuard {
                 if !(*self.port).userdata.is_null() {
                     drop_port_userdata(self.port);
                 }
-                #[cfg(feature = "debug")]
-                println!("complete");
+                debug!("complete");
             }
         }
     }
@@ -766,11 +765,9 @@ impl SeriousCamera {
         buffer_port_ptr: *mut ffi::MMAL_PORT_T,
     ) -> Result<(), CameraError> {
         let num = ffi::mmal_queue_length(self.pool.unwrap().as_ref().queue as *mut _);
-        #[cfg(feature = "debug")]
-        println!("got length {}", num);
+        debug!("got length {}", num);
 
-        #[cfg(feature = "debug")]
-        println!(
+        debug!(
             "assigning pool of {} buffers size {}",
             (*buffer_port_ptr).buffer_num,
             (*buffer_port_ptr).buffer_size
@@ -778,8 +775,7 @@ impl SeriousCamera {
 
         for i in 0..num {
             let buffer = ffi::mmal_queue_get(self.pool.unwrap().as_ref().queue);
-            #[cfg(feature = "debug")]
-            println!("got buffer {}", i);
+            debug!("got buffer {}", i);
 
             if buffer.is_null() {
                 return Err(MmalError::with_status(
@@ -876,8 +872,7 @@ impl SeriousCamera {
 
             match status {
                 MMAL_STATUS_T::MMAL_SUCCESS => {
-                    #[cfg(feature = "debug")]
-                    println!("Started capture");
+                    debug!("Started capture");
 
                     Ok(receiver)
                 }
@@ -959,8 +954,7 @@ unsafe extern "C" fn camera_buffer_callback(
     let pdata_ptr: *mut Userdata = (*port).userdata as *mut Userdata;
     let mut complete = false;
 
-    #[cfg(feature = "debug")]
-    println!("I'm called from C. buffer length: {}", bytes_to_write);
+    debug!("I'm called from C. buffer length: {}", bytes_to_write);
 
     if !pdata_ptr.is_null() {
         let userdata: &mut Userdata = &mut *pdata_ptr;
@@ -999,15 +993,13 @@ unsafe extern "C" fn camera_buffer_callback(
                 SenderKind::AsyncSender(sender) => sender.close_channel(),
                 SenderKind::SyncSender(sender) => {
                     if let Err(_err) = sender.send(None) {
-                        #[cfg(feature = "debug")]
-                        println!("Got err sending None: {}", _err);
+                        debug!("Got err sending None: {}", _err);
                     }
                 }
             };
         }
     } else {
-        #[cfg(feature = "debug")]
-        println!("Received a camera still buffer callback with no state");
+        debug!("Received a camera still buffer callback with no state");
     }
 }
 
@@ -1017,8 +1009,7 @@ unsafe extern "C" fn camera_control_callback(
 ) {
     // https://github.com/raspberrypi/userland/blob/master/host_applications/linux/apps/raspicam/RaspiStillYUV.c#L525
 
-    #[cfg(feature = "debug")]
-    println!("Camera control callback  cmd=0x{:08x}", (*buffer).cmd);
+    debug!("Camera control callback  cmd=0x{:08x}", (*buffer).cmd);
 
     if (*buffer).cmd == ffi::MMAL_EVENT_PARAMETER_CHANGED {
         let param: *mut ffi::MMAL_EVENT_PARAMETER_CHANGED_T =
@@ -1027,8 +1018,7 @@ unsafe extern "C" fn camera_control_callback(
             let settings_ptr: *mut ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T =
                 param as *mut ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T;
             let _settings: ffi::MMAL_PARAMETER_CAMERA_SETTINGS_T = *settings_ptr;
-            #[cfg(feature = "debug")]
-            println!(
+            debug!(
                 "Exposure now {}, analog gain {}/{}, digital gain {}/{}",
                 _settings.exposure,
                 _settings.analog_gain.num,
@@ -1036,8 +1026,7 @@ unsafe extern "C" fn camera_control_callback(
                 _settings.digital_gain.num,
                 _settings.digital_gain.den
             );
-            #[cfg(feature = "debug")]
-            println!(
+            debug!(
                 "AWB R={}/{}, B={}/{}",
                 _settings.awb_red_gain.num,
                 _settings.awb_red_gain.den,
@@ -1046,13 +1035,11 @@ unsafe extern "C" fn camera_control_callback(
             );
         }
     } else if (*buffer).cmd == ffi::MMAL_EVENT_ERROR {
-        #[cfg(feature = "debug")]
-        println!(
+        debug!(
             "No data received from sensor. Check all connections, including the Sunny one on the camera board"
         );
     } else {
-        #[cfg(feature = "debug")]
-        println!(
+        debug!(
             "Received unexpected camera control callback event, {:08x}",
             (*buffer).cmd
         );
@@ -1072,45 +1059,37 @@ impl Drop for SeriousCamera {
             }
             if self.encoder_enabled {
                 ffi::mmal_component_disable(self.encoder.unwrap().as_ptr());
-                #[cfg(feature = "debug")]
-                println!("encoder disabled");
+                debug!("encoder disabled");
             }
             if self.enabled {
                 ffi::mmal_component_disable(self.camera.as_ptr());
-                #[cfg(feature = "debug")]
-                println!("camera disabled");
+                debug!("camera disabled");
             }
             if self.encoder_output_port_enabled {
                 ffi::mmal_port_disable(*self.encoder.unwrap().as_ref().output.offset(0));
-                #[cfg(feature = "debug")]
-                println!("encoder output port disabled");
+                debug!("encoder output port disabled");
             }
             if self.encoder_control_port_enabled {
                 ffi::mmal_port_disable(self.encoder.unwrap().as_ref().control);
-                #[cfg(feature = "debug")]
-                println!("encoder control port disabled");
+                debug!("encoder control port disabled");
             }
             if self.camera_port_enabled {
                 ffi::mmal_port_disable(self.camera.as_ref().control);
-                #[cfg(feature = "debug")]
-                println!("camera port disabled");
+                debug!("camera port disabled");
             }
             if self.still_port_enabled {
                 ffi::mmal_port_disable(*self.camera.as_ref().output.offset(2));
-                #[cfg(feature = "debug")]
-                println!("still port disabled");
+                debug!("still port disabled");
             }
             if self.preview_connection.is_some() {
                 ffi::mmal_connection_disable(self.preview_connection.unwrap().as_ptr());
                 ffi::mmal_connection_destroy(self.preview_connection.unwrap().as_ptr());
-                #[cfg(feature = "debug")]
-                println!("preview connection destroyed");
+                debug!("preview connection destroyed");
             }
             if self.preview.is_some() {
                 ffi::mmal_component_disable(self.preview.unwrap().as_ptr());
                 ffi::mmal_component_destroy(self.preview.unwrap().as_ptr());
-                #[cfg(feature = "debug")]
-                println!("preview destroyed");
+                debug!("preview destroyed");
             }
             if self.pool.is_some() {
                 let port_ptr = if self.use_encoder {
@@ -1123,17 +1102,14 @@ impl Drop for SeriousCamera {
                 // port doesn't need to be disabled because it is already
                 // previously disabled in previous if statements
                 ffi::mmal_port_pool_destroy(port_ptr, self.pool.unwrap().as_ptr());
-                #[cfg(feature = "debug")]
-                println!("pool destroyed");
+                debug!("pool destroyed");
             }
 
             ffi::mmal_component_destroy(self.camera.as_ptr());
-            #[cfg(feature = "debug")]
-            println!("camera destroyed");
+            debug!("camera destroyed");
             if self.encoder_created {
                 ffi::mmal_component_destroy(self.encoder.unwrap().as_ptr());
-                #[cfg(feature = "debug")]
-                println!("encoder destroyed");
+                debug!("encoder destroyed");
             }
         }
     }
