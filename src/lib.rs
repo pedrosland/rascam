@@ -319,9 +319,9 @@ impl SeriousCamera {
 
     pub unsafe fn set_buffer_callback(&mut self, sender: SenderKind) {
         let port = if self.use_encoder {
-            (*self.encoder.unwrap().as_ref().output.offset(0))
+            *self.encoder.unwrap().as_ref().output.offset(0)
         } else {
-            (*self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT))
+            *self.camera.as_ref().output.offset(MMAL_CAMERA_CAPTURE_PORT)
         };
 
         let userdata = Userdata {
@@ -417,11 +417,70 @@ impl SeriousCamera {
             // TODO:
             //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
-            let status =
-                ffi::mmal_port_parameter_set_uint32(control, ffi::MMAL_PARAMETER_ISO, settings.iso);
+            let status = ffi::mmal_port_parameter_set_uint32(
+                control,
+                ffi::MMAL_PARAMETER_ISO,
+                settings.iso as u32,
+            );
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(MmalError::with_status("Unable to set ISO".to_owned(), status).into());
             }
+
+            let status = ffi::mmal_port_parameter_set_int32(
+                control,
+                ffi::MMAL_PARAMETER_EXPOSURE_COMP,
+                settings.exposure_compensation,
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set Exposure Compensation".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            //TODO: pub exposure_mode: ExposureMode
+            let status = ffi::mmal_port_parameter_set_int32(
+                control,
+                ffi::MMAL_PARAMETER_EXPOSURE_MODE,
+                settings.exposure_mode as i32,
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set Exposure Mode".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            //TODO: pub metering_mode: MeteringMode,
+            //TODO: pub awb_mode: AwbMode,
+
+            // TODO: Brightness
+            /*
+            let status = ffi::mmal_port_parameter_set_uint32(
+                control,
+                ffi::MMAL_PARAMETER_BRIGHTNESS,
+                settings.brightness,
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(
+                    MmalError::with_status("Unable to set Brightness".to_owned(), status).into(),
+                );
+            }*/
+
+            // TODO: Contrast
+            /*
+            let status = ffi::mmal_port_parameter_set_int32(
+                control,
+                ffi::MMAL_PARAMETER_CONTRAST,
+                settings.contrast,
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(
+                    MmalError::with_status("Unable to set Contrast".to_owned(), status).into(),
+                );
+            }*/
 
             let mut format = preview_port.format;
 
@@ -1138,7 +1197,7 @@ impl Drop for SeriousCamera {
 pub struct SimpleCamera {
     info: CameraInfo,
     serious: SeriousCamera,
-    settings: Option<CameraSettings>,
+    settings: CameraSettings,
 }
 
 impl SimpleCamera {
@@ -1148,26 +1207,22 @@ impl SimpleCamera {
         Ok(SimpleCamera {
             info,
             serious: sc,
-            settings: None,
+            settings: CameraSettings::default(),
         })
     }
 
-    pub fn configure(&mut self, mut settings: CameraSettings) {
-        if settings.width == 0 {
-            settings.width = self.info.max_width;
-        }
-        if settings.height == 0 {
-            settings.height = self.info.max_height;
-        }
+    pub fn configure(&mut self, new_settings: &CameraSettings) {
+        self.settings = new_settings.clone();
 
-        self.settings = Some(settings);
+        if self.settings.width == 0 {
+            self.settings.width = self.info.max_width;
+        }
+        if self.settings.height == 0 {
+            self.settings.height = self.info.max_height;
+        }
     }
 
     pub fn activate(&mut self) -> Result<(), CameraError> {
-        if self.settings.is_none() {
-            self.configure(CameraSettings::default());
-        }
-        let settings = self.settings.as_ref().unwrap();
         let camera = &mut self.serious;
 
         camera.set_camera_num(0)?;
@@ -1176,8 +1231,7 @@ impl SimpleCamera {
 
         camera.create_preview()?;
 
-        // camera.set_camera_format(ffi::MMAL_ENCODING_JPEG, self.info.max_width, self.info.max_height, false)?;
-        camera.set_camera_format(settings)?;
+        camera.set_camera_format(&self.settings)?;
         camera.enable_control_port(false)?;
 
         camera.enable()?;
@@ -1229,11 +1283,9 @@ impl SimpleCamera {
     pub async fn take_one_async(&mut self) -> Result<Vec<u8>, CameraError> {
         let receiver = self.serious.take_async()?;
         let future = receiver
-            .fold(Vec::new(), |mut acc, buf| {
-                async move {
-                    acc.extend(buf.get_bytes());
-                    acc
-                }
+            .fold(Vec::new(), |mut acc, buf| async move {
+                acc.extend(buf.get_bytes());
+                acc
             })
             .map(Ok);
 
