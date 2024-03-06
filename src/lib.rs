@@ -8,7 +8,7 @@
 use mmal_sys as ffi;
 #[macro_use(defer_on_unwind)]
 extern crate scopeguard;
-use ffi::MMAL_STATUS_T;
+use ffi::{MMAL_STATUS_T, MMAL_RATIONAL_T};
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
 use parking_lot::{lock_api::RawMutex, Mutex};
@@ -414,18 +414,27 @@ impl SeriousCamera {
 
             let control = self.camera.as_ref().control;
 
-            // TODO:
-            //raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
-
+            // Shutter speed (in microseconds)
             let status = ffi::mmal_port_parameter_set_uint32(
                 control,
-                ffi::MMAL_PARAMETER_ISO,
-                settings.iso as u32,
+                ffi::MMAL_PARAMETER_SHUTTER_SPEED,
+                settings.shutter_speed,
             );
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(MmalError::with_status("Unable to set ISO".to_owned(), status).into());
             }
 
+            // ISO
+            let status = ffi::mmal_port_parameter_set_uint32(
+                control,
+                ffi::MMAL_PARAMETER_ISO,
+                settings.iso.to_u32(),
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status("Unable to set ISO".to_owned(), status).into());
+            }
+
+            // Exposure Compensation
             let status = ffi::mmal_port_parameter_set_int32(
                 control,
                 ffi::MMAL_PARAMETER_EXPOSURE_COMP,
@@ -439,11 +448,11 @@ impl SeriousCamera {
                 .into());
             }
 
-            //TODO: pub exposure_mode: ExposureMode
+            // Exposure Mode
             let status = ffi::mmal_port_parameter_set_int32(
                 control,
                 ffi::MMAL_PARAMETER_EXPOSURE_MODE,
-                settings.exposure_mode as i32,
+                settings.exposure_mode.to_i32(),
             );
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(MmalError::with_status(
@@ -453,34 +462,111 @@ impl SeriousCamera {
                 .into());
             }
 
-            //TODO: pub metering_mode: MeteringMode,
-            //TODO: pub awb_mode: AwbMode,
+            // Metering Mode
+            let status = ffi::mmal_port_parameter_set_int32(
+                control,
+                ffi::MMAL_PARAMETER_EXP_METERING_MODE,
+                settings.metering_mode.to_i32(),
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set Exposure Mode".to_owned(),
+                    status,
+                )
+                .into());
+            }
 
-            // TODO: Brightness
-            /*
-            let status = ffi::mmal_port_parameter_set_uint32(
+            // Awb Mode
+            let status = ffi::mmal_port_parameter_set_int32(
+                control,
+                ffi::MMAL_PARAMETER_AWB_MODE,
+                settings.awb_mode.to_i32(),
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set Exposure Mode".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            // Flicker Avoid Mode
+            let status = ffi::mmal_port_parameter_set_int32(
+                control,
+                ffi::MMAL_PARAMETER_EXPOSURE_MODE,
+                settings.exposure_mode.to_i32(),
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(MmalError::with_status(
+                    "Unable to set Exposure Mode".to_owned(),
+                    status,
+                )
+                .into());
+            }
+
+            // Brightness
+            let brightness: MMAL_RATIONAL_T = MMAL_RATIONAL_T {
+                num: settings.brightness as i32,
+                den: 100,
+            };
+            let status = ffi::mmal_port_parameter_set_rational(
                 control,
                 ffi::MMAL_PARAMETER_BRIGHTNESS,
-                settings.brightness,
+                brightness,
             );
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(
                     MmalError::with_status("Unable to set Brightness".to_owned(), status).into(),
                 );
-            }*/
+            }
 
-            // TODO: Contrast
-            /*
-            let status = ffi::mmal_port_parameter_set_int32(
+            // Contrast
+            let contrast: MMAL_RATIONAL_T = MMAL_RATIONAL_T {
+                num: settings.contrast as i32,
+                den: 100,
+            };
+            let status = ffi::mmal_port_parameter_set_rational(
                 control,
                 ffi::MMAL_PARAMETER_CONTRAST,
-                settings.contrast,
+                contrast,
             );
             if status != MMAL_STATUS_T::MMAL_SUCCESS {
                 return Err(
                     MmalError::with_status("Unable to set Contrast".to_owned(), status).into(),
                 );
-            }*/
+            }
+
+            // Saturation
+            let saturation: MMAL_RATIONAL_T = MMAL_RATIONAL_T {
+                num: settings.saturation as i32,
+                den: 100,
+            };
+            let status = ffi::mmal_port_parameter_set_rational(
+                control,
+                ffi::MMAL_PARAMETER_SATURATION,
+                saturation,
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(
+                    MmalError::with_status("Unable to set Saturation".to_owned(), status).into(),
+                );
+            }
+
+            // Sharpness
+            let sharpness: MMAL_RATIONAL_T = MMAL_RATIONAL_T {
+                num: settings.sharpness as i32,
+                den: 100,
+            };
+            let status = ffi::mmal_port_parameter_set_rational(
+                control,
+                ffi::MMAL_PARAMETER_SHARPNESS,
+                sharpness,
+            );
+            if status != MMAL_STATUS_T::MMAL_SUCCESS {
+                return Err(
+                    MmalError::with_status("Unable to set Sharpness".to_owned(), status).into(),
+                );
+            }
 
             let mut format = preview_port.format;
 

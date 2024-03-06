@@ -38,8 +38,8 @@ pub enum MeteringMode {
 }
 
 impl MeteringMode {
-    pub fn to_u32(&self) -> u32 {
-        *self as u32
+    pub fn to_i32(&self) -> i32 {
+        *self as i32
     }
 }
 
@@ -59,14 +59,14 @@ pub enum ExposureMode {
 }
 
 impl ExposureMode {
-    pub fn to_u32(&self) -> u32 {
-        *self as u32
+    pub fn to_i32(&self) -> i32 {
+        *self as i32
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 /// Auto White Balance Mode
-// no sense supporting Off is we don't also support awb_gains_r & awb_gains_b
+// no sense supporting Off if we don't also support awb_gains_r & awb_gains_b
 // values from MMAL_PARAM_AWBMODE_T in https://github.com/raspberrypi/userland/blob/master/interface/mmal/mmal_parameters_camera.h
 pub enum AwbMode {
     Auto = 1,
@@ -79,8 +79,39 @@ pub enum AwbMode {
 }
 
 impl AwbMode {
-    pub fn to_u32(&self) -> u32 {
-        *self as u32
+    pub fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Flicker reduction mode
+// values from MMAL_PARAM_FLICKERAVOID_T in https://github.com/raspberrypi/userland/blob/master/interface/mmal/mmal_parameters_camera.h
+pub enum FlickerAvoidMode {
+    Off = 0,
+    Auto = 1,
+    Avoid50Hz = 2,
+    Avoid60Hz = 3,
+}
+
+impl FlickerAvoidMode {
+    pub fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Image rotation
+pub enum Rotation {
+    Rotate0 = 0,
+    Rotate90 = 90,
+    Rotate180 = 180,
+    Rotate270 = 270,
+}
+
+impl Rotation {
+    pub fn to_i32(&self) -> i32 {
+        *self as i32
     }
 }
 
@@ -108,9 +139,11 @@ pub struct CameraSettings {
     pub height: u32,
     /// ISO. Default is Auto
     pub iso: ISO,
+    // shutter_speed: 0 = auto, otherwise the shutter speed in microseconds
+    pub shutter_speed: u32,
     /// Exposure mode
     pub exposure_mode: ExposureMode,
-    /// Meteriing Mode
+    /// Meterng Mode
     pub metering_mode: MeteringMode,
     /// White Balance
     pub awb_mode: AwbMode,
@@ -120,12 +153,18 @@ pub struct CameraSettings {
     pub brightness: u32,
     /// Contrast -100% to +100%, default = 0%
     pub contrast: i32,
-    // TODO: add saturation -100% to 100%
-    // TODO: add sharpness  -100% to 100%
-    // TODO: add rotation (0, 90, 180, or 270)
-    // TODO: add H&V flip
-    // TODO: Do we need shutter speed? - probably not
-    // TODO: Do we need flicker avoidance mode  (Off, 50Hz, 60Hz)?
+    // Saturation  -100% to 100%, default = 0%
+    pub saturation: i32,
+    // Sharpness  -100% to 100%, default = 0%
+    pub sharpness: i32,
+    // rotation (0, 90, 180, or 270), default = 0
+    pub rotation: Rotation,
+    // H&V flip , default = false
+    pub horizontal_flip: bool,
+    pub vertical_flip: bool,
+
+    // flicker avoidance mode  (Off, Auto, 50Hz, 60Hz), default = Auto
+    pub flicker_avoid: FlickerAvoidMode,
     pub zero_copy: bool,
     /// `use_encoder` will go away
     pub use_encoder: bool,
@@ -138,12 +177,19 @@ impl Default for CameraSettings {
             width: 0,
             height: 0,
             iso: ISO::IsoAuto,
+            shutter_speed: 0,
             exposure_mode: ExposureMode::Auto,
             metering_mode: MeteringMode::Average,
             awb_mode: AwbMode::Auto,
             exposure_compensation: 0,
             brightness: 50,
             contrast: 0,
+            saturation: 0,
+            sharpness: 0,
+            rotation: Rotation::Rotate0,
+            horizontal_flip: false,
+            vertical_flip: false,
+            flicker_avoid: FlickerAvoidMode::Auto,
             zero_copy: false,
             use_encoder: true,
         }
